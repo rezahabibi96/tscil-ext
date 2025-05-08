@@ -1,4 +1,3 @@
-
 from utils.buffer.random_retrieve import Random_retrieve
 from utils.buffer.reservoir_update import Reservoir_update
 from utils.buffer.mir_retrieve import MIR_retrieve
@@ -10,15 +9,15 @@ from utils.buffer.mem_match import MemMatch_retrieve
 
 
 retrieve_methods = {
-    'MIR': MIR_retrieve,
-    'random': Random_retrieve,
-    'ASER': ASER_retrieve,
-    'match': Match_retrieve,
-    'mem_match': MemMatch_retrieve
+    "MIR": MIR_retrieve,
+    "random": Random_retrieve,
+    "ASER": ASER_retrieve,
+    "match": Match_retrieve,
+    "mem_match": MemMatch_retrieve,
 }
 
 update_methods = {
-    'random': Reservoir_update,
-    'GSS': GSSGreedyUpdate,
-    'ASER': ASER_update
+    "random": Reservoir_update,
+    "GSS": GSSGreedyUpdate,
+    "ASER": ASER_update,
 }
