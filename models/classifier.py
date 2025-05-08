@@ -26,8 +26,12 @@ class SingleHead(nn.Module):
         self.out_features += n_new
         old_head = copy.deepcopy(self.fc)
 
-        self.fc = nn.Linear(in_features=self.in_features, out_features=self.out_features)
+        self.fc = nn.Linear(
+            in_features=self.in_features, out_features=self.out_features
+        )
+
         torch.nn.init.xavier_uniform_(self.fc.weight)
+
         with torch.no_grad():
             self.fc.weight[:n_old_classes] = old_head.weight
             self.fc.bias[:n_old_classes] = old_head.bias
@@ -42,11 +46,11 @@ class CosineLinear(Module):
         if sigma:
             self.sigma = Parameter(torch.Tensor(1))
         else:
-            self.register_parameter('sigma', None)
+            self.register_parameter("sigma", None)
         self.reset_parameters()
 
     def reset_parameters(self):
-        stdv = 1. / math.sqrt(self.weight.size(1))
+        stdv = 1.0 / math.sqrt(self.weight.size(1))
         self.weight.data.uniform_(-stdv, stdv)
         if self.sigma is not None:
             self.sigma.data.fill_(1)
@@ -63,8 +67,9 @@ class CosineLinear(Module):
             self.weight.data[:n_old_classes] = old_weight.data
 
     def forward(self, input):
-        out = F.linear(F.normalize(input, p=2,dim=1), \
-                F.normalize(self.weight, p=2, dim=1))
+        out = F.linear(
+            F.normalize(input, p=2, dim=1), F.normalize(self.weight, p=2, dim=1)
+        )
         if self.sigma is not None:
             out = self.sigma * out
         return out
@@ -81,7 +86,7 @@ class SplitCosineLinear(Module):
             self.sigma = Parameter(torch.Tensor(1))
             self.sigma.data.fill_(1)
         else:
-            self.register_parameter('sigma', None)
+            self.register_parameter("sigma", None)
 
     def forward(self, x):
         out1 = self.fc1(x)
