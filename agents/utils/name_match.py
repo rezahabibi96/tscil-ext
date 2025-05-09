@@ -16,22 +16,34 @@ from agents.er_sub import ER_on_Subject
 from agents.fast_icarl import FastICARL
 
 
-agents = {'SFT': SequentialFineTune,
-          'ER': ExperienceReplay,
-          'ER_Sub': ER_on_Subject,
-          'EWC': EWC,
-          'LwF': LwF,
-          'SI': SI,
-          'MAS': MAS,
-          'DT2W': DT2W,
-          'ASER': ASER,
-          'Herding': Herding,
-          'Mnemonics': Herding,
-          'Inversion': Inversion,
-          'CLOPS': CLOPS,
-          'DER': DarkExperienceReplay,
-          'GR': GenerativeReplay,
-          'FastICARL': FastICARL
-          }
+agents = {
+    "SFT": SequentialFineTune,
+    "ER": ExperienceReplay,
+    "ER_Sub": ER_on_Subject,
+    "EWC": EWC,
+    "LwF": LwF,
+    "SI": SI,
+    "MAS": MAS,
+    "DT2W": DT2W,
+    "ASER": ASER,
+    "Herding": Herding,
+    "Mnemonics": Herding,
+    "Inversion": Inversion,
+    "CLOPS": CLOPS,
+    "DER": DarkExperienceReplay,
+    "GR": GenerativeReplay,
+    "FastICARL": FastICARL,
+}
 
-agents_replay = ['ER', 'DER', 'Herding', 'Mnemonics', 'ASER', 'Inversion', 'CLOPS', 'GR', 'ER_Sub', 'FastICARL']
+agents_replay = [
+    "ER",
+    "DER",
+    "Herding",
+    "Mnemonics",
+    "ASER",
+    "Inversion",
+    "CLOPS",
+    "GR",
+    "ER_Sub",
+    "FastICARL",
+]
