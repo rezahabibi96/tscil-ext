@@ -16,7 +16,9 @@ def Dataloader_from_numpy_with_idx(X, idx, Y, batch_size, shuffle=True):
     """
     - Tensors in dataloader are in cpu.
     """
-    dataset = TensorDataset(torch.Tensor(X), torch.Tensor(idx).long(), torch.Tensor(Y).long())
+    dataset = TensorDataset(
+        torch.Tensor(X), torch.Tensor(idx).long(), torch.Tensor(Y).long()
+    )
     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
 
 
@@ -24,7 +26,9 @@ def Dataloader_from_numpy_with_sub(X, Y, Sub, batch_size, shuffle=True):
     """
     - Tensors in dataloader are in cpu.
     """
-    dataset = TensorDataset(torch.Tensor(X), torch.Tensor(Y).long(), torch.Tensor(Sub).long())
+    dataset = TensorDataset(
+        torch.Tensor(X), torch.Tensor(Y).long(), torch.Tensor(Sub).long()
+    )
     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
 
 
@@ -47,7 +51,9 @@ def extract_samples_according_to_labels(x, y, target_ids, return_inds=False):
         return x_extracted, y_extracted
 
 
-def extract_samples_according_to_labels_with_sub(x, y, sub, target_ids, return_inds=False):
+def extract_samples_according_to_labels_with_sub(
+    x, y, sub, target_ids, return_inds=False
+):
     """
     Extract corresponding samples with subject label from x and y according to the labels
     :param x: data, np array
@@ -69,6 +75,14 @@ def extract_samples_according_to_labels_with_sub(x, y, sub, target_ids, return_i
 
 
 def extract_samples_according_to_subjects(x, y, sub, target_ids, return_inds=False):
+    """
+    Extract corresponding samples from x and y according to the subjects
+    :param x: data, np array
+    :param y: labels, np array
+    :param sub: subject labels, np array
+    :param target_ids: list of labels
+    :return:
+    """
     # get the indices
     inds = list(map(lambda x: x in target_ids, sub))
     x_extracted = x[inds]
@@ -90,4 +104,3 @@ def extract_n_samples_randomly(x, y, n_sample):
     """
     sampled_idx = np.random.randint(0, len(y), size=n_sample)
     return x[sampled_idx], y[sampled_idx]
-
