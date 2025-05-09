@@ -69,7 +69,6 @@ preset_orders = {
     "uwave": [0, 2, 1, 3, 4, 6, 5, 7],
     "dailysports": list(range(18)),
     "grabmyo": list(range(16)),
-    "ninapro": list(range(40)),
     "wisdm": list(range(18)),
 }
 
