@@ -71,7 +71,7 @@ class SingleHeadModel(nn.Module):
         """
         if self.input_norm:
             x = self.input_norm(x)
-        feature_map = self.encoder(x, pooling=False)
+        feature_map = self.encoder(x, pooling=False)  # pooling false
         return feature_map
 
     def feature(self, x):
@@ -80,7 +80,7 @@ class SingleHeadModel(nn.Module):
         """
         if self.input_norm:
             x = self.input_norm(x)
-        feature = self.encoder(x, pooling=True)
+        feature = self.encoder(x, pooling=True)  # pooling true
         return feature
 
     def forward(self, x):
@@ -115,7 +115,9 @@ class SingleHeadModel(nn.Module):
                 new_head.sigma.data = self.head.sigma.data
                 self.head = new_head
         else:
-            self.head.increase_neurons(n_new)
+            self.head.increase_neurons(
+                n_new
+            )  # SingleHead Classifier / Linear and CosineLinear have increase_neurons while SplitCosineLinear does not
 
 
 def setup_model(args):
