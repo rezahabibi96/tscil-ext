@@ -7,12 +7,14 @@ import torch
 """
 Download from https://github.com/hyeonseobnam/Batch-Instance-Normalization
 """
+
+
 class _BatchInstanceNorm(_BatchNorm):
     def __init__(self, num_features, eps=1e-5, momentum=0.1, affine=True):
         super(_BatchInstanceNorm, self).__init__(num_features, eps, momentum, affine)
         self.gate = Parameter(torch.Tensor(num_features))
         self.gate.data.fill_(1)
-        setattr(self.gate, 'bin_gate', True)
+        setattr(self.gate, "bin_gate", True)
 
     def forward(self, input):
         self._check_input_dim(input)
@@ -23,9 +25,16 @@ class _BatchInstanceNorm(_BatchNorm):
         else:
             bn_w = self.gate
         out_bn = F.batch_norm(
-            input, self.running_mean, self.running_var, bn_w, self.bias,
-            self.training, self.momentum, self.eps)
-        
+            input,
+            self.running_mean,
+            self.running_var,
+            bn_w,
+            self.bias,
+            self.training,
+            self.momentum,
+            self.eps,
+        )
+
         # Instance norm
         b, c = input.size(0), input.size(1)
         if self.affine:
@@ -35,8 +44,8 @@ class _BatchInstanceNorm(_BatchNorm):
         # input: (16, 64, 128)
         input = input.view(1, b * c, *input.size()[2:])  # (1, 1024, 128)
         out_in = F.batch_norm(
-            input, None, None, None, None,
-            True, self.momentum, self.eps)
+            input, None, None, None, None, True, self.momentum, self.eps
+        )
         out_in = out_in.view(b, c, *input.size()[2:])  # (16, 64, 128)
         # out_in.mul_(in_w[None, :, None, None])
         out_in.mul_(in_w[None, :, None])
@@ -47,16 +56,18 @@ class _BatchInstanceNorm(_BatchNorm):
 class BatchInstanceNorm1d(_BatchInstanceNorm):
     def _check_input_dim(self, input):
         if input.dim() != 2 and input.dim() != 3:
-            raise ValueError('expected 2D or 3D input (got {}D input)'.format(input.dim()))
+            raise ValueError(
+                "expected 2D or 3D input (got {}D input)".format(input.dim())
+            )
 
 
 class BatchInstanceNorm2d(_BatchInstanceNorm):
     def _check_input_dim(self, input):
         if input.dim() != 4:
-            raise ValueError('expected 4D input (got {}D input)'.format(input.dim()))
+            raise ValueError("expected 4D input (got {}D input)".format(input.dim()))
 
 
 class BatchInstanceNorm3d(_BatchInstanceNorm):
     def _check_input_dim(self, input):
         if input.dim() != 5:
-            raise ValueError('expected 5D input (got {}D input)'.format(input.dim()))
+            raise ValueError("expected 5D input (got {}D input)".format(input.dim()))
