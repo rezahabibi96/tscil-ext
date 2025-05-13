@@ -36,6 +36,7 @@ if __name__ == "__main__":
             "Inversion",
             "GR",
             "FastICARL",
+            "GCPP",
         ],
         help="Continual learning agent",
     )
@@ -177,6 +178,8 @@ if __name__ == "__main__":
     )
 
     # ######################## Methods-related params ###########################
+    # GCPP
+
     # Experience Replay
     parser.add_argument(
         "--er_mode",
