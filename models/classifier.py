@@ -49,11 +49,13 @@ class CosineLinear(Module):
             self.register_parameter("sigma", None)
         self.reset_parameters()
 
-    def reset_parameters(self):
-        stdv = 1.0 / math.sqrt(self.weight.size(1))
-        self.weight.data.uniform_(-stdv, stdv)
+    def forward(self, input):
+        out = F.linear(
+            F.normalize(input, p=2, dim=1), F.normalize(self.weight, p=2, dim=1)
+        )
         if self.sigma is not None:
-            self.sigma.data.fill_(1)
+            out = self.sigma * out
+        return out
 
     def increase_neurons(self, n_new):
         n_old_classes = self.out_features
@@ -66,13 +68,11 @@ class CosineLinear(Module):
         with torch.no_grad():
             self.weight.data[:n_old_classes] = old_weight.data
 
-    def forward(self, input):
-        out = F.linear(
-            F.normalize(input, p=2, dim=1), F.normalize(self.weight, p=2, dim=1)
-        )
+    def reset_parameters(self):
+        stdv = 1.0 / math.sqrt(self.weight.size(1))
+        self.weight.data.uniform_(-stdv, stdv)
         if self.sigma is not None:
-            out = self.sigma * out
-        return out
+            self.sigma.data.fill_(1)
 
 
 class SplitCosineLinear(Module):
