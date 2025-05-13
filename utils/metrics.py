@@ -7,6 +7,20 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
+def compute_performance_offline(acc_multiple_run):
+    """featured in: experiment/exp.py & experiment/exp_and_tune.py;"""
+    n_run = acc_multiple_run.shape[0]
+    t_coef = stats.t.ppf((1 + 0.95) / 2, n_run - 1)
+
+    # compute average test accuracy and CI
+    acc = (
+        (np.mean(acc_multiple_run), t_coef * sem(acc_multiple_run))
+        if n_run > 1
+        else (np.mean(acc_multiple_run),)
+    )
+    return acc
+
+
 def compute_performance(end_task_acc_arr):
     """
     Given test accuracy results from multiple runs saved in end_task_acc_arr,
@@ -15,6 +29,8 @@ def compute_performance(end_task_acc_arr):
     :param end_task_acc_arr:        3D nd_arrays  (num_runs, num_tasks, num_tasks)
     :param task_ids:                (list or tuple) Task ids to keep track of
     :return:                        (avg_end_acc, forgetting, avg_acc_task)
+
+    featured in: experiment/exp.py & experiment/exp_and_tune.py;
     """
     n_run, n_tasks = end_task_acc_arr.shape[:2]
     t_coef = stats.t.ppf(
@@ -79,28 +95,8 @@ def compute_performance(end_task_acc_arr):
     return avg_end_acc, avg_end_fgt, avg_cur_acc, avg_acc, avg_bwtp
 
 
-def compute_performance_offline(acc_multiple_run):
-    n_run = acc_multiple_run.shape[0]
-    t_coef = stats.t.ppf((1 + 0.95) / 2, n_run - 1)
-
-    # compute average test accuracy and CI
-    acc = (
-        (np.mean(acc_multiple_run), t_coef * sem(acc_multiple_run))
-        if n_run > 1
-        else (np.mean(acc_multiple_run),)
-    )
-    return acc
-
-
-def single_run_avg_end_fgt(acc_array):
-    best_acc = np.max(acc_array, axis=1)
-    end_acc = acc_array[-1]
-    final_forgets = best_acc - end_acc
-    avg_fgt = np.mean(final_forgets)
-    return avg_fgt
-
-
 def plot_confusion_matrix(y_true, y_pred, classes, path):
+    """featured in: agents/base.py & experiment/exp.py;"""
     # Build confusion matrix
     cf_matrix = confusion_matrix(y_true, y_pred)
     cf_matrix = cf_matrix / np.sum(cf_matrix, axis=1, keepdims=True)
@@ -115,3 +111,11 @@ def plot_confusion_matrix(y_true, y_pred, classes, path):
     s = sn.heatmap(df_cm, annot=True, fmt="g", cmap="coolwarm", center=0.3, square=True)
     s.set(xlabel="Prediction", ylabel="Ground truth")
     plt.savefig(path, bbox_inches="tight")
+
+
+def single_run_avg_end_fgt(acc_array):
+    best_acc = np.max(acc_array, axis=1)
+    end_acc = acc_array[-1]
+    final_forgets = best_acc - end_acc
+    avg_fgt = np.mean(final_forgets)
+    return avg_fgt
