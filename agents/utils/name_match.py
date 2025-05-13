@@ -49,3 +49,7 @@ agents_replay = [
     "ER_Sub",
     "FastICARL",
 ]
+
+agents_gc = [
+    "GCPP",
+]
