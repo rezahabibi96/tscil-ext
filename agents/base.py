@@ -175,6 +175,89 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
         """
         raise NotImplementedError
 
+    def cross_entropy_epoch_run(self, dataloader, epoch=None, mode="train"):
+        """
+        Train / eval with cross entropy.
+
+        Args:
+            dataloader: dataloader for train/val/test
+            epoch: used for lr_adj
+            train: set True for training, False for eval
+
+        Returns:
+            epoch_loss: average cross entropy loss on this epoch
+            epoch_acc: average accuracy on this epoch
+        """
+        total = 0
+        correct = 0
+        epoch_loss = 0
+
+        if mode == "train":
+            self.model.train()
+        else:
+            self.model.eval()
+
+        for batch_id, (x, y) in enumerate(dataloader):
+            x, y = x.to(self.device), y.to(self.device)
+            total += y.size(0)
+
+            if y.size == 1:
+                y.unsqueeze()
+
+            if mode == "train":
+                self.optimizer.zero_grad()
+                outputs = self.model(x)
+                step_loss = self.criterion(outputs, y)
+                step_loss.backward()
+                self.optimizer_step(epoch)
+
+            else:
+                with torch.no_grad():
+                    outputs = self.model(x)
+                    step_loss = self.criterion(outputs, y)
+
+                    if self.ncm_classifier and mode == "test":
+                        features = self.model.feature(x)
+                        distance = torch.cdist(
+                            F.normalize(features, p=2, dim=1),
+                            F.normalize(self.means_of_exemplars, p=2, dim=1),
+                        )
+                        outputs = -distance  # select the class with min distance
+
+            epoch_loss += step_loss
+
+            prediction = torch.argmax(outputs, dim=1)
+            correct += prediction.eq(y).sum().item()
+
+        epoch_acc = 100.0 * (correct / total)
+        epoch_loss /= batch_id + 1  # avg loss of a mini batch
+
+        return epoch_loss, epoch_acc
+
+    def optimizer_step(self, epoch):
+        torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1)
+        self.optimizer.step()
+
+        # if self.args.norm == "BIN":
+        #     bin_gates = [
+        #         p for p in self.model.parameters() if getattr(p, "bin_gate", False)
+        #     ]
+        #     for p in bin_gates:
+        #         p.data.clamp_(min=0, max=1)
+
+        if self.args.lradj == "TST":
+            adjust_learning_rate(
+                self.optimizer, self.scheduler, epoch + 1, self.args, printout=False
+            )
+            self.scheduler.step()
+
+    def epoch_loss_printer(self, epoch, acc, loss):
+        print(
+            "Epoch {}/{}: Accuracy = {}, Loss = {}".format(
+                epoch + 1, self.epochs, acc, loss
+            )
+        )
+
     def after_task(self, x_train, y_train):
         self.learned_classes += self.classes_in_task
         self.model.load_state_dict(torch.load(self.ckpt_path))  # eval()
@@ -244,11 +327,13 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
                     and self.task_now + 1 == self.num_tasks
                     and mode == "test"
                 ):  # Collect results for CM
+                    # run test_for_cf_matrix after learning all task
                     eval_loss_i, eval_acc_i = self.test_for_cf_matrix(eval_dataloader_i)
                 else:
+                    # run cross_entropy_epoch_run after learning each task (except the last task)
                     eval_loss_i, eval_acc_i = self.cross_entropy_epoch_run(
                         eval_dataloader_i, mode="test"
-                    )
+                    )  # should the mode be variable mode instead of hard coded??
 
                 if self.verbose:
                     print(
@@ -283,70 +368,12 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
             tsne_path = path + "t{}".format(self.task_now)
             self.feature_space_tsne_visualization(task_stream, path=tsne_path)
 
+        # TODO: ZZ: TSNE visualization ??
         if self.args.tsne_g and self.args.agent == "GR" and not self.args.tune:
             tsne_path = path + "t{}_g".format(self.task_now)
             self.feature_space_tsne_visualization(
                 task_stream, path=tsne_path, view_generator=True
             )
-
-    def cross_entropy_epoch_run(self, dataloader, epoch=None, mode="train"):
-        """
-        Train / eval with cross entropy.
-
-        Args:
-            dataloader: dataloader for train/val/test
-            epoch: used for lr_adj
-            train: set True for training, False for eval
-
-        Returns:
-            epoch_loss: average cross entropy loss on this epoch
-            epoch_acc: average accuracy on this epoch
-        """
-        total = 0
-        correct = 0
-        epoch_loss = 0
-
-        if mode == "train":
-            self.model.train()
-        else:
-            self.model.eval()
-
-        for batch_id, (x, y) in enumerate(dataloader):
-            x, y = x.to(self.device), y.to(self.device)
-            total += y.size(0)
-
-            if y.size == 1:
-                y.unsqueeze()
-
-            if mode == "train":
-                self.optimizer.zero_grad()
-                outputs = self.model(x)
-                step_loss = self.criterion(outputs, y)
-                step_loss.backward()
-                self.optimizer_step(epoch)
-
-            else:
-                with torch.no_grad():
-                    outputs = self.model(x)
-                    step_loss = self.criterion(outputs, y)
-
-                    if self.ncm_classifier and mode == "test":
-                        features = self.model.feature(x)
-                        distance = torch.cdist(
-                            F.normalize(features, p=2, dim=1),
-                            F.normalize(self.means_of_exemplars, p=2, dim=1),
-                        )
-                        outputs = -distance  # select the class with min distance
-
-            epoch_loss += step_loss
-
-            prediction = torch.argmax(outputs, dim=1)
-            correct += prediction.eq(y).sum().item()
-
-        epoch_acc = 100.0 * (correct / total)
-        epoch_loss /= batch_id + 1  # avg loss of a mini batch
-
-        return epoch_loss, epoch_acc
 
     @torch.no_grad()
     def test_for_cf_matrix(self, dataloader):
@@ -378,15 +405,23 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
                 outputs = self.model(x)
                 step_loss = ce_loss(outputs, y)
 
-                predictions = (torch.max(torch.exp(outputs), 1)[1]).data.cpu().numpy()
+                # why no 'if self.ncm_classifier and mode == "test":' such in cross_entropy_epoch_run
+
+                predictions = (
+                    (torch.max(torch.exp(outputs), 1)[1]).data.cpu().numpy()
+                )  # 1 why compute predictions with different formula than (2)
                 labels = y.data.cpu().numpy()
 
+                # other than: i no ncm_classifier & ii two diff predictions formula;
+                # these two lines also differentiate test_for_cf_matrix with cross_entropy_epoch_run
                 self.y_pred_cf.extend(predictions)  # Save Prediction
                 self.y_true_cf.extend(labels)  # Save Truth
 
             epoch_loss += step_loss
 
-            prediction = torch.argmax(outputs, dim=1)
+            prediction = torch.argmax(
+                outputs, dim=1
+            )  # 2 why compute predictions with different formula than (1)
             correct += prediction.eq(y).sum().item()
 
         epoch_acc = 100.0 * (correct / total)
@@ -399,6 +434,7 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
 
     @torch.no_grad()
     def feature_space_tsne_visualization(self, task_stream, path, view_generator=False):
+        """featured in evaluate func"""
         for i in range(self.task_now + 1):
             if i == 0:
                 _, _, (x_all, y_all) = task_stream.tasks[
@@ -464,29 +500,6 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
 
         plt.savefig(path, bbox_inches="tight")
         plt.show()
-
-    def optimizer_step(self, epoch):
-
-        torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1)
-        self.optimizer.step()
-
-        # if self.args.norm == 'BIN':
-        #     bin_gates = [p for p in self.model.parameters() if getattr(p, 'bin_gate', False)]
-        #     for p in bin_gates:
-        #         p.data.clamp_(min=0, max=1)
-
-        if self.args.lradj == "TST":
-            adjust_learning_rate(
-                self.optimizer, self.scheduler, epoch + 1, self.args, printout=False
-            )
-            self.scheduler.step()
-
-    def epoch_loss_printer(self, epoch, acc, loss):
-        print(
-            "Epoch {}/{}: Accuracy = {}, Loss = {}".format(
-                epoch + 1, self.epochs, acc, loss
-            )
-        )
 
 
 class SequentialFineTune(BaseLearner):
