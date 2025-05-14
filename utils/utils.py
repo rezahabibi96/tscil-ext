@@ -8,19 +8,6 @@ import pickle
 import psutil
 
 
-class Logger(object):
-    def __init__(self, filename="Default.log"):
-        self.terminal = sys.stdout
-        self.log = open(filename, "a")
-
-    def write(self, message):
-        self.terminal.write(message)
-        self.log.write(message)
-
-    def flush(self):
-        pass
-
-
 class AverageMeter(object):
     """Computes and stores the average and current value"""
 
@@ -39,6 +26,30 @@ class AverageMeter(object):
         if self.count == 0:
             return 0
         return float(self.sum) / self.count
+
+
+class BinaryCrossEntropy:
+    def __init__(self, dim, device):
+        self.dim = dim
+        self.device = device
+        self.criterion = torch.nn.BCEWithLogitsLoss()
+
+    def __call__(self, logits, labels):
+        targets = ohe_label(labels, dim=self.dim, device=self.device)
+        loss = self.criterion(logits, targets)
+        return loss
+
+
+class BinaryCrossEntropywithLogits:
+    def __init__(self, dim, device):
+        self.dim = dim
+        self.device = device
+        self.criterion = torch.nn.BCEWithLogitsLoss()
+
+    def __call__(self, logits, target_logits):
+        targets = torch.sigmoid(target_logits)
+        loss = self.criterion(logits, targets)
+        return loss
 
 
 class EarlyStopping:
@@ -104,28 +115,17 @@ class EarlyStopping:
         self.val_metric_best = val_metric
 
 
-class BinaryCrossEntropy:
-    def __init__(self, dim, device):
-        self.dim = dim
-        self.device = device
-        self.criterion = torch.nn.BCEWithLogitsLoss()
+class Logger(object):
+    def __init__(self, filename="Default.log"):
+        self.terminal = sys.stdout
+        self.log = open(filename, "a")
 
-    def __call__(self, logits, labels):
-        targets = ohe_label(labels, dim=self.dim, device=self.device)
-        loss = self.criterion(logits, targets)
-        return loss
+    def write(self, message):
+        self.terminal.write(message)
+        self.log.write(message)
 
-
-class BinaryCrossEntropywithLogits:
-    def __init__(self, dim, device):
-        self.dim = dim
-        self.device = device
-        self.criterion = torch.nn.BCEWithLogitsLoss()
-
-    def __call__(self, logits, target_logits):
-        targets = torch.sigmoid(target_logits)
-        loss = self.criterion(logits, targets)
-        return loss
+    def flush(self):
+        pass
 
 
 # ######################## IO ###########################
