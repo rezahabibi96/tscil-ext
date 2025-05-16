@@ -32,7 +32,10 @@ class IncrementalTaskStream(object):
         elif self.split == "val":
             start, end = 0, n_tasks_val[data]
         elif self.split == "exp":
-            start = 0 if n_tasks[self.data] < 5 else n_tasks_val[data]
+            # start = 0 if n_tasks[self.data] < 5 else n_tasks_val[data] # mod code
+            start = (
+                0 if self.data in ["har", "uwave"] else n_tasks_val[data]
+            )  # ori code
             end = n_tasks[data]
         else:
             raise ValueError("Incorrect task stream split")
@@ -69,7 +72,8 @@ class IncrementalTaskStream(object):
         else:
             sub_train = None
 
-        if n_tasks[self.data] < 5 and self.split == "val":
+        # if n_tasks[self.data] < 5 and self.split == "val": # ori code
+        if self.data in ["har", "uwave"] and self.split == "val":  # mod code
             x_test = load_pickle(self.path + "x_val.pkl")
             y_test = load_pickle(self.path + "state_val.pkl")
 
