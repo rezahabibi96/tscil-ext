@@ -86,7 +86,7 @@ def convert_grabmyo():
 
     # Add paths for Session1, Session2, and Session3
     path = "data/raw/GRABMyo/gesture-recognition-and-biometrics-electromyogram-grabmyo-1.0.2"
-    session_paths = ["Session1"]
+    session_paths = ["Session1"]  # or ["Session1", "Session2", "Session3"]
     for session_path in session_paths:
         sys.path.append(os.path.join(os.getcwd(), path, session_path))
 
