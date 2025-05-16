@@ -38,11 +38,6 @@ def unzip_data():
             zObject.extractall(path=f"data/saved")
 
 
-if __name__ == "__main__":
-    download_data()
-    unzip_data()
-
-
 ###################### from wfdb to mat ######################
 def convert_grabmyo():
     # https://physionet.org/content/grabmyo/1.1.0/grabmyo_convert_wfdb_to_mat.py
@@ -57,10 +52,8 @@ def convert_grabmyo():
     sampling frequency = 2048 Hz
     bandpass filtering (hardware) = 10Hz-500Hz
 
-
     In order to run this script make sure the above three folders are and
     a fileconversion function 'rdwfdb.m' are in the same directory
-
 
     output %%%%%%%%%
     Main Folder: 'Output BM'
@@ -84,20 +77,23 @@ def convert_grabmyo():
 
     # Your Python code starts here
 
-    import sys
     import os
+    import sys
     import wfdb
+    import shutil
+    import numpy as np
     from scipy.io import savemat
 
     # Add paths for Session1, Session2, and Session3
-    path = "data/raw/GRABMyo/raw_file/physionet.org/files/grabmyo/1.0.2"
+    path = "data/raw/GRABMyo/gesture-recognition-and-biometrics-electromyogram-grabmyo-1.0.2"
     session_paths = ["Session1"]
     for session_path in session_paths:
         sys.path.append(os.path.join(os.getcwd(), path, session_path))
 
     # Obtain the total number of subjects
     nsub = (
-        len(os.listdir(os.path.join(os.getcwd(), path, "Session1"))) - 1
+        # len(os.listdir(os.path.join(os.getcwd(), path, "Session1"))) - 1  <=> no need to subtract by 1
+        len(os.listdir(os.path.join(os.getcwd(), path, "Session1")))
     )  # Assuming number of subjects are the same in all sessions
     nsession = 1
     ngesture = 16  # Total number of gestures
@@ -115,17 +111,12 @@ def convert_grabmyo():
             if cont in ("Y", "N"):
                 if cont == "Y":
                     print("Overwriting")
-                    import shutil
-
                     shutil.rmtree(output_folder)
                     os.mkdir(output_folder)
                     break
                 else:
                     print("Exiting Script!")
                     sys.exit()
-
-    import os
-    import numpy as np
 
     foldername = []
     filename = []
@@ -149,11 +140,13 @@ def convert_grabmyo():
     )
     indices = [i for i, x in enumerate(wrist_channels) if x == 1]
     print(indices)
+
     # Define data_forearm and data_wrist lists before the loop
 
     # Create a 7x17 array of 2D matrices
     matrices_forearm = np.empty((7, 17), dtype=object)
     matrices_wrist = np.empty((7, 17), dtype=object)
+
     # Populate each element with a 2D matrix (for demonstration, using zero data)
     for i in range(7):
         for j in range(17):
@@ -176,6 +169,7 @@ def convert_grabmyo():
             foldername = f"session{isession}_participant{isub}"
 
             for igesture in range(1, ngesture + 2):  # +1 to include rest gesture
+
                 for itrial in range(1, ntrials + 1):
                     filename = f"session{isession}_participant{isub}_gesture{igesture}_trial{itrial}"
                     filepath = os.path.join(
@@ -199,8 +193,8 @@ def convert_grabmyo():
 
             count += 1
             print(f"Converted: {count} of {nsub * nsession} files")
-            # Create a dictionary to hold the data
 
+            # Create a dictionary to hold the data
             savemat(
                 os.path.join(
                     output_folder,
