@@ -42,7 +42,13 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
         self.er_mode = args.er_mode
         self.teacher = None
         self.use_kd = False
-        self.ncm_classifier = False  # Only applicable for replay-based methods
+
+        # Only applicable for replay-based methods
+        # it is used in after_task (to compute mean feature) and cross_entropy_epoch_run (test mode)
+        # note tht ncm classifier is only run in test mode
+        # model classifier is still run in train mode (for learning feature repr used by ncm classifier in test mode)
+        # model classifier is still run in val mode (for earlystoping)
+        self.ncm_classifier = False
 
         if not self.args.tune:
             self.ckpt_path = args.exp_path + "/ckpt_r{}.pt".format(self.run_id)
@@ -147,7 +153,8 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
             # Test on val set for early stop
             epoch_loss_val, epoch_acc_val = self.cross_entropy_epoch_run(
                 val_dataloader, mode="val"
-            )
+            )  # val mode is on purpose so tht ncm_classifier will not be checked in cross_entropy_epoch_run
+            # it is by design
 
             if self.args.lradj != "TST":
                 adjust_learning_rate(
@@ -333,7 +340,7 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
                     # run cross_entropy_epoch_run after learning each task (except the last task)
                     eval_loss_i, eval_acc_i = self.cross_entropy_epoch_run(
                         eval_dataloader_i, mode="test"
-                    )  # should the mode be variable mode instead of hard coded??
+                    )  # the hard coded mode is probably on purpose so tht the ncm_classifier will be checked
 
                 if self.verbose:
                     print(
@@ -409,11 +416,9 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
 
                 predictions = (
                     (torch.max(torch.exp(outputs), 1)[1]).data.cpu().numpy()
-                )  # 1 why compute predictions with different formula than (2)
+                )  # 1 why compute pred with diff formula than (2)
                 labels = y.data.cpu().numpy()
 
-                # other than: i no ncm_classifier & ii two diff predictions formula;
-                # these two lines also differentiate test_for_cf_matrix with cross_entropy_epoch_run
                 self.y_pred_cf.extend(predictions)  # Save Prediction
                 self.y_true_cf.extend(labels)  # Save Truth
 
@@ -421,7 +426,7 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
 
             prediction = torch.argmax(
                 outputs, dim=1
-            )  # 2 why compute predictions with different formula than (1)
+            )  # 2 why compute pred with diff formula than (1)
             correct += prediction.eq(y).sum().item()
 
         epoch_acc = 100.0 * (correct / total)
