@@ -61,8 +61,12 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
         self.task_now = -1  # ID of the current task
 
         # ToDO: Consider the case that class order can change!
-        self.learned_classes = []  # Joint ohv labels for all the seen classes
-        self.classes_in_task = []  # Joint ohv labels for classes in the current task
+        self.learned_classes = (
+            []
+        )  # Joint ohv (one-hot vector) labels for all the seen classes
+        self.classes_in_task = (
+            []
+        )  # Joint ohv (one-hot vector) labels for classes in the current task
 
         if not self.args.early_stop:
             self.args.patience = self.epochs  # Set Early stop patience as # epochs
@@ -398,7 +402,8 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
         total = 0
         correct = 0
         epoch_loss = 0
-        ce_loss = torch.nn.CrossEntropyLoss()
+        ce_loss = torch.nn.CrossEntropyLoss()  # on purpose
+        # in cross_entropy_epoch_run using self.criterion (which can be either CE or BCE)
 
         self.model.eval()
         for batch_id, (x, y) in enumerate(dataloader):
@@ -418,6 +423,8 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
                     (torch.max(torch.exp(outputs), 1)[1]).data.cpu().numpy()
                 )  # 1 why compute pred with diff formula than (2)
                 labels = y.data.cpu().numpy()
+
+                # using max & exp means tht it assumes the outputs is log prob from log softmax calculation
 
                 self.y_pred_cf.extend(predictions)  # Save Prediction
                 self.y_true_cf.extend(labels)  # Save Truth
