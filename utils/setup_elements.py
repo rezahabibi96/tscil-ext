@@ -72,17 +72,6 @@ preset_orders = {
     "wisdm": list(range(18)),
 }
 
-n_subjects = {"har": 21, "dailysports": 8}
-
-# jitter for Inversion
-jitter = {
-    "har": 10,
-    "uwave": 10,
-    "dailysports": 10,
-    "grabmyo": 10,
-    "wisdm": 10,
-}
-
 
 def get_num_tasks(args):
     if args.stream_split == "all":
@@ -113,3 +102,16 @@ def get_buffer_size(args):
         mem_size = n_exemplar_per_task * n_tasks_exp[args.data]
 
     return mem_size
+
+
+n_subjects = {"har": 21, "dailysports": 8}  # only applicable for method ER_Sub
+
+
+# jitter for Inversion
+jitter = {
+    "har": 10,
+    "uwave": 10,
+    "dailysports": 10,
+    "grabmyo": 10,
+    "wisdm": 10,
+}
