@@ -104,8 +104,8 @@ def get_buffer_size(args):
     return mem_size
 
 
-n_subjects = {"har": 21, "dailysports": 8}  # only applicable for method ER_Sub
-
+# only applicable for method ER_Sub
+n_subjects = {"har": 21, "dailysports": 8}
 
 # jitter for Inversion
 jitter = {
