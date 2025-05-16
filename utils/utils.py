@@ -194,7 +194,7 @@ def seed_fixer(seed):
         torch.backends.cudnn.deterministic = True
 
 
-# ######################## MATH ###########################
+# ######################## MATH (ASER) ###########################
 def euclidean_distance(u, v):
     euclidean_distance_ = (u - v).pow(2).sum(1)
     return euclidean_distance_
