@@ -158,7 +158,7 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
             epoch_loss_val, epoch_acc_val = self.cross_entropy_epoch_run(
                 val_dataloader, mode="val"
             )  # val mode is on purpose so tht ncm_classifier will not be checked in cross_entropy_epoch_run
-            # it is by design
+            # it is by design due to val mode is used for early stop
 
             if self.args.lradj != "TST":
                 adjust_learning_rate(
