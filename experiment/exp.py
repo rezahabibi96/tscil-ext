@@ -3,7 +3,7 @@ import torch
 import time
 import os
 import numpy as np
-from agents.utils.name_match import agents
+from agents.utils.name_match import agents, agents_gc
 from agents.utils.functions import epoch_run, test_epoch_for_cf_matrix
 from models.base import setup_model
 from utils.stream import IncrementalTaskStream, get_cls_order
@@ -184,8 +184,12 @@ def experiment_multiple_runs(args):
             load_subject = True if "Sub" in args.agent else False  # Only ER_Sub
             task_stream.setup(load_subject=load_subject)
 
-            model = setup_model(args)
-            agent = agents[args.agent](model=model, args=args)
+            if args.agent in agents_gc:
+                args.task_stream = task_stream
+                agent = agents[args.agent](args=args)
+            else:
+                model = setup_model(args)
+                agent = agents[args.agent](model=model, args=args)
 
             # Task Loop: Train & evaluate for each task. Plot CF matrix after finishing the final task.
             for i in range(task_stream.n_tasks):
