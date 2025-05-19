@@ -22,7 +22,6 @@ from agents.utils.functions import compute_cls_feature_mean_buffer
 
 class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
     def __init__(self, model: nn.Module, args: argparse.Namespace):
-
         super(BaseLearner, self).__init__()
         self.model = model
         self.optimizer = set_optimizer(self.model, args)
@@ -94,6 +93,7 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
         self.classes_in_task = list(
             set(y_train.tolist())
         )  # labels in order, not original randomized-order labels
+        # it is in oder due to stream.py (# map the class labels to the ordered ones)
 
         n_new_classes = len(self.classes_in_task)
         assert n_new_classes > 1, "A task must contain more than 1 class"
