@@ -293,6 +293,31 @@ class VariationalAutoencoderConv(nn.Module):
         self.replay_recon_loss_tracker.reset()
         self.replay_kl_loss_tracker.reset()
 
+    # COMMENT REMOVED
+    # CHECK THE ORIGIN REPO
 
-# COMMENT REMOVED
-# CHECK THE ORIGIN REPO
+    def estimate_distance(self, x, prototypes):
+        # TODO
+        # with torch.no_grad():
+        #     z = self.encoder(x)
+        # dists = [torch.norm(z - p, dim=1) for p in prototypes]
+        # dists = torch.stack(dists, dim=1)
+        # return dists
+        pass
+
+    def estimate_prototype(self, size):
+        # TODO
+        # x = self.sample(size)
+        # with torch.no_grad():
+        #     z_mean, _, _ = self.encoder(x)
+
+        # prototype = torch.mean(z_mean, dim=0)
+        # return prototype
+
+        x = self.sample(size)
+        prototype = torch.mean(x, dim=0)
+        return prototype
+
+    def estimate_loglikelihood(self):
+        """Generative Classifier"""
+        pass
