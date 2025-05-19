@@ -122,6 +122,7 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
                     self.task_now, len(self.learned_classes + self.classes_in_task)
                 )
             )
+            print("\n--> Class: {}".format(self.classes_in_task))
 
     def learn_task(self, task):
         """
