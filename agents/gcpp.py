@@ -2,6 +2,7 @@ import torch
 import numpy as np
 from agents.base_gc import BaseLearnerGC
 from torch.optim import Adam
+import torch.nn.functional as F
 from utils.setup_elements import input_size_match
 from utils.data import Dataloader_from_numpy, extract_samples_according_to_labels
 from models.timeVAE import VariationalAutoencoderConv
@@ -121,10 +122,11 @@ class GenerativeClassiferPP(BaseLearnerGC):
                 "test": np.zeros((self.num_tasks, self.num_tasks)),
             }
 
-        prototypes = []
+        prototypes = []  # list of (L, C)
         for id in self.learned_classes:
             prototype = self.generators[id]["vae"].estimate_prototype(size=100)
             prototypes.append(prototype)
+        prototypes = torch.stack(prototypes, dim=0)  # (#learned_classes, L, C)
 
         eval_modes = ["valid", "test"]  # 'valid' is for checking generalization.
         for mode in eval_modes:
@@ -153,8 +155,18 @@ class GenerativeClassiferPP(BaseLearnerGC):
                     if y.size == 1:
                         y.unsqueeze()
 
-                    dists = [torch.norm(x - p, dim=(1, 2)) for p in prototypes]
-                    dists = torch.stack(dists, dim=1)
+                    # dists = [torch.norm(x - p, dim=(1, 2)) for p in prototypes]
+                    # dists = torch.stack(dists, dim=1)
+
+                    x_flat = x.reshape(x.size(0), -1)  # (#batch_size, L*C)
+                    proto_flat = prototypes.reshape(
+                        prototypes.size(0), -1
+                    )  # (#learned_classes, L*C)
+
+                    x_flat = F.normalize(x_flat, dim=1)
+                    proto_flat = F.normalize(proto_flat, dim=1)
+
+                    dists = torch.cdist(x_flat, proto_flat, p=2)
 
                     preds = torch.argmin(dists, dim=1)
                     correct += preds.eq(y).sum().item()
