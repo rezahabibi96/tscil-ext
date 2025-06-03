@@ -203,6 +203,7 @@ def euclidean_dist(fmap1, fmap2):
     return torch.mean(torch.linalg.norm(fmap1 - fmap2, dim=-1), dim=1)
 
 
+# used for similarity metric (eg dt2w)
 def pod_loss_temp(F1, F2):
     # F1, F2 are in shape of (N, D, L)
     F1 = torch.sum(F1, dim=-1)  # (N, D)
@@ -211,6 +212,7 @@ def pod_loss_temp(F1, F2):
     return loss
 
 
+# used for similarity metric (eg dt2w)
 def pod_loss_var(F1, F2):
     # F1, F2 are in shape of (N, D, L)
     F1 = torch.sum(F1, dim=1)  # (N, L)
