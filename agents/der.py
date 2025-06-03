@@ -13,14 +13,17 @@ class DarkExperienceReplay(BaseLearner):
     Follow the Paper: "Dark Experience for General Continual Learning: a Strong, Simple Baseline"
     https://github.com/aimagelab/mammoth
     """
+
     def __init__(self, model, args):
         super(DarkExperienceReplay, self).__init__(model, args)
         args.eps_mem_batch = args.batch_size
-        args.retrieve = 'random'
-        args.update = 'random'
+        args.retrieve = "random"
+        args.update = "random"
         self.buffer = Buffer(model, args)
         self.ncm_classifier = args.ncm_classifier
-        print('ER mode: {}, NCM classifier: {}'.format(self.er_mode, self.ncm_classifier))
+        print(
+            "ER mode: {}, NCM classifier: {}".format(self.er_mode, self.ncm_classifier)
+        )
 
         self.der_plus = args.der_plus
 
@@ -28,7 +31,7 @@ class DarkExperienceReplay(BaseLearner):
         total = 0
         correct = 0
         epoch_loss = 0
-        
+
         self.model.train()
 
         for batch_id, (x, y) in enumerate(dataloader):
@@ -44,7 +47,9 @@ class DarkExperienceReplay(BaseLearner):
             if self.task_now > 0:  # Replay after 1st task
                 x_buf, (y_buf, logits_buf) = self.buffer.retrieve(x=x, y=y)
                 outputs_buf = self.model(x_buf)
-                loss += 0.5 * F.mse_loss(outputs_buf, logits_buf[:, :outputs_buf.size(1)])
+                loss += 0.5 * F.mse_loss(
+                    outputs_buf, logits_buf[:, : outputs_buf.size(1)]
+                )
 
                 if self.der_plus:
                     loss += 0.5 * self.criterion(outputs_buf, y_buf)
@@ -54,15 +59,15 @@ class DarkExperienceReplay(BaseLearner):
             loss.backward()
             self.optimizer_step(epoch=epoch)
 
-            if self.er_mode == 'online':
+            if self.er_mode == "online":
                 self.buffer.update(x, y, logits=outputs)
 
             epoch_loss += loss
             prediction = torch.argmax(outputs, dim=1)
             correct += prediction.eq(y).sum().item()
 
-        epoch_acc = 100. * (correct / total)
-        epoch_loss /= (batch_id + 1)
+        epoch_acc = 100.0 * (correct / total)
+        epoch_loss /= batch_id + 1
 
         return epoch_loss, epoch_acc
 
@@ -70,23 +75,31 @@ class DarkExperienceReplay(BaseLearner):
         self.learned_classes += self.classes_in_task
         self.model.load_state_dict(torch.load(self.ckpt_path))
 
-        if self.buffer and self.er_mode == 'task':  # Additional pass to collect memory samples
-            dataloader = Dataloader_from_numpy(x_train, y_train, self.batch_size, shuffle=True)
+        if (
+            self.buffer and self.er_mode == "task"
+        ):  # Additional pass to collect memory samples
+            dataloader = Dataloader_from_numpy(
+                x_train, y_train, self.batch_size, shuffle=True
+            )
             for batch_id, (x, y) in enumerate(dataloader):
                 x, y = x.to(self.device), y.to(self.device)
                 with torch.no_grad():
                     outputs = self.model(x)
                 bs, n_cls = outputs.size()
-                zeros_tensor = torch.zeros((bs, get_num_classes(self.args) - n_cls), device=self.device)
+                zeros_tensor = torch.zeros(
+                    (bs, get_num_classes(self.args) - n_cls), device=self.device
+                )
                 outputs = torch.cat((outputs, zeros_tensor), dim=1)
 
                 self.buffer.update(x, y, logits=outputs)
 
         # Compute means of classes if using ncm classifier
         if self.ncm_classifier:
-            self.means_of_exemplars = compute_cls_feature_mean_buffer(self.buffer, self.model)
+            self.means_of_exemplars = compute_cls_feature_mean_buffer(
+                self.buffer, self.model
+            )
 
         if self.use_kd:
-            self.teacher = copy.deepcopy(self.model)  # eval()
+            self.teacher = copy.deepcopy(self.model)  # eval() mode
             if not self.args.teacher_eval:
-                self.teacher.train()
+                self.teacher.train()  # train() mode

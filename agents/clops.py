@@ -18,16 +18,17 @@ class CLOPS(BaseLearner):
     Importance-guided buffer storage
     Uncertainty-based buffer retrieval.
     """
+
     def __init__(self, model, args):
         super(CLOPS, self).__init__(model, args)
 
         args.eps_mem_batch = args.batch_size
         # We need to set args.retrieve and args.update as 'random' to initialize Buffer
-        args.retrieve = 'random'
-        args.update = 'random'
+        args.retrieve = "random"
+        args.update = "random"
         self.buffer = Buffer(model, args)
         self.er_mode = args.er_mode
-        print('ER mode: {}'.format(self.er_mode))
+        print("ER mode: {}".format(self.er_mode))
 
         self.instance_beta = None
         self.beta_lr = args.beta_lr
@@ -40,7 +41,6 @@ class CLOPS(BaseLearner):
         self.mc_epochs = 3  # Interval of epochs to trigger MC sampling
         self.mc_times = 10  # How many times to repeat
 
-
     def learn_task(self, task):
 
         (x_train, y_train), (x_val, y_val), _ = task
@@ -48,24 +48,40 @@ class CLOPS(BaseLearner):
         # Prepare for beta
         nsamples = x_train.shape[0]
         instance_idx = np.arange(nsamples)  # Get the idx of each training instance
-        self.instance_beta = torch.ones(nsamples, requires_grad=False, device=self.device)  # sample-wise coefficient
+        self.instance_beta = torch.ones(
+            nsamples, requires_grad=False, device=self.device
+        )  # sample-wise coefficient
         self.tracked_instance_beta_dict = {index: [] for index in range(nsamples)}
 
         self.before_task(y_train)
-        train_dataloader = Dataloader_from_numpy_with_idx(x_train, instance_idx, y_train, self.batch_size, shuffle=True)
-        val_dataloader = Dataloader_from_numpy(x_val, y_val, self.batch_size, shuffle=False)
-        early_stopping = EarlyStopping(path=self.ckpt_path, patience=self.args.patience, mode='min', verbose=False)
-        self.scheduler = lr_scheduler.OneCycleLR(optimizer=self.optimizer,
-                                                 steps_per_epoch=len(train_dataloader),
-                                                 epochs=self.epochs,
-                                                 max_lr=self.args.lr)
+        train_dataloader = Dataloader_from_numpy_with_idx(
+            x_train, instance_idx, y_train, self.batch_size, shuffle=True
+        )
+        val_dataloader = Dataloader_from_numpy(
+            x_val, y_val, self.batch_size, shuffle=False
+        )
+        early_stopping = EarlyStopping(
+            path=self.ckpt_path, patience=self.args.patience, mode="min", verbose=False
+        )
+        self.scheduler = lr_scheduler.OneCycleLR(
+            optimizer=self.optimizer,
+            steps_per_epoch=len(train_dataloader),
+            epochs=self.epochs,
+            max_lr=self.args.lr,
+        )
 
         for epoch in range(self.epochs):
-            epoch_loss_train, epoch_acc_train = self.train_epoch(train_dataloader, epoch=epoch)
-            epoch_loss_val, epoch_acc_val = self.cross_entropy_epoch_run(val_dataloader, mode='val')
+            epoch_loss_train, epoch_acc_train = self.train_epoch(
+                train_dataloader, epoch=epoch
+            )
+            epoch_loss_val, epoch_acc_val = self.cross_entropy_epoch_run(
+                val_dataloader, mode="val"
+            )
 
-            if self.args.lradj != 'TST':
-                adjust_learning_rate(self.optimizer, self.scheduler, epoch + 1, self.args)
+            if self.args.lradj != "TST":
+                adjust_learning_rate(
+                    self.optimizer, self.scheduler, epoch + 1, self.args
+                )
 
             if self.verbose:
                 self.epoch_loss_printer(epoch, epoch_acc_train, epoch_loss_train)
@@ -83,7 +99,9 @@ class CLOPS(BaseLearner):
         epoch_loss = 0
 
         criterion_buf = torch.nn.CrossEntropyLoss()
-        criterion_new = torch.nn.CrossEntropyLoss(reduction='none')  # weight the loss per instance
+        criterion_new = torch.nn.CrossEntropyLoss(
+            reduction="none"
+        )  # weight the loss per instance
         regularization_criterion = torch.nn.MSELoss()
         self.model.train()
 
@@ -110,15 +128,20 @@ class CLOPS(BaseLearner):
             ce_samplewise = criterion_new(outputs, y)
 
             # Create a new tensor for the beta values corresponding to each sample in the batch
-            beta_batch = torch.tensor([self.instance_beta[i].item() for i in idx], device=self.device,
-                                      requires_grad=True)
+            beta_batch = torch.tensor(
+                [self.instance_beta[i].item() for i in idx],
+                device=self.device,
+                requires_grad=True,
+            )
 
             # Perform the multiplication and mean reduction
             ce_weighted = torch.mean(ce_samplewise * beta_batch)
             loss = loss + ce_weighted
 
             # Add regularization term
-            regularization_loss = regularization_criterion(beta_batch, torch.ones_like(beta_batch))
+            regularization_loss = regularization_criterion(
+                beta_batch, torch.ones_like(beta_batch)
+            )
             loss += self.lambda_beta * regularization_loss
             loss.backward()
 
@@ -141,8 +164,8 @@ class CLOPS(BaseLearner):
             prediction = torch.argmax(outputs, dim=1)
             correct += prediction.eq(y).sum().item()
 
-        epoch_acc = 100. * (correct / total)
-        epoch_loss /= (batch_id + 1)
+        epoch_acc = 100.0 * (correct / total)
+        epoch_loss /= batch_id + 1
 
         return epoch_loss, epoch_acc
 
@@ -150,8 +173,12 @@ class CLOPS(BaseLearner):
         self.learned_classes += self.classes_in_task
         self.model.load_state_dict(torch.load(self.ckpt_path))
 
-        if self.buffer and self.er_mode == 'task':  # Additional pass to collect memory samples
-            nb_protos_cl = int(np.ceil(self.buffer.mem_size / len(self.learned_classes)))
+        if (
+            self.buffer and self.er_mode == "task"
+        ):  # Additional pass to collect memory samples
+            nb_protos_cl = int(
+                np.ceil(self.buffer.mem_size / len(self.learned_classes))
+            )
             X_protoset_cumuls = []
             Y_protoset_cumuls = []
 
@@ -160,11 +187,15 @@ class CLOPS(BaseLearner):
                 idx_cls = np.where(y_train == cls)[0]
                 # Calculate the area under beta's line for each instance
                 aul_dict = dict()
-                subset = {key: self.tracked_instance_beta_dict[key] for key in list(idx_cls)}
+                subset = {
+                    key: self.tracked_instance_beta_dict[key] for key in list(idx_cls)
+                }
                 for index, beta_over_time in subset.items():
                     mean_alpha = np.trapz(beta_over_time)  # Eq 7
                     aul_dict[index] = mean_alpha
-                sorted_aul_dict = dict(sorted(aul_dict.items(), key=lambda x: x[1], reverse=True))
+                sorted_aul_dict = dict(
+                    sorted(aul_dict.items(), key=lambda x: x[1], reverse=True)
+                )
                 buffered_indices = list(sorted_aul_dict.keys())[:nb_protos_cl]
                 X_protoset_cumuls.append(x_train[buffered_indices])
                 Y_protoset_cumuls.append(y_train[buffered_indices])
@@ -182,13 +213,14 @@ class CLOPS(BaseLearner):
 
             self.buffer.buffer_input = X_protoset
             self.buffer.buffer_label = Y_protoset
-            self.buffer.current_index = self.buffer.buffer_input.size(0)  # Totally filled the buffer
+            self.buffer.current_index = self.buffer.buffer_input.size(
+                0
+            )  # Totally filled the buffer
 
         if self.use_kd:
-            self.teacher = copy.deepcopy(self.model)  # eval()
+            self.teacher = copy.deepcopy(self.model)  # eval() mode
             if not self.args.teacher_eval:
-                self.teacher.train()
-
+                self.teacher.train()  # train() mode
 
     def remove_old_exemplars(self, n_exm_per_task):
         old_exemplars = self.buffer.buffer_input
@@ -201,8 +233,8 @@ class CLOPS(BaseLearner):
 
         for i in range(num_old_cls):
             start = i * num_exm_per_old_cls
-            exem_i = old_exemplars[start: start + n_exm_per_task]
-            labels_i = old_labels[start: start + n_exm_per_task]
+            exem_i = old_exemplars[start : start + n_exm_per_task]
+            labels_i = old_labels[start : start + n_exm_per_task]
             kept_exemplars.append(exem_i)
             kept_labels.append(labels_i)
 
@@ -237,7 +269,9 @@ class CLOPS(BaseLearner):
 
             N = X_protoset.size(0)
             T = self.mc_times
-            C = len(self.learned_classes) + len(self.classes_in_task)  # num of nodes in classifier
+            C = len(self.learned_classes) + len(
+                self.classes_in_task
+            )  # num of nodes in classifier
             G = torch.zeros((N, T, C), device=self.device)
 
             # MC dropout sampling
@@ -245,9 +279,9 @@ class CLOPS(BaseLearner):
                 start = 0
                 end = bs if bs < N else N
                 while start < end:
-                    x = X_protoset[start: end]
+                    x = X_protoset[start:end]
                     outputs = self.model(x)
-                    G[start: end, t, :] = outputs
+                    G[start:end, t, :] = outputs
                     start = end
                     end = start + bs if start + bs < N else N
             G = G.cpu().detach().numpy()  # nparray
@@ -270,7 +304,9 @@ class CLOPS(BaseLearner):
                     bald = entropy_of_mixture - mixture_of_entropy
                     bald_dict[i] = bald
 
-                sorted_bald_dict = dict(sorted(bald_dict.items(), key=lambda x: x[1], reverse=True))
+                sorted_bald_dict = dict(
+                    sorted(bald_dict.items(), key=lambda x: x[1], reverse=True)
+                )
                 buffered_indices = list(sorted_bald_dict.keys())[:n_retrieve_per_cls]
                 X_retrieve.append(X_protoset[buffered_indices])
                 Y_retrieve.append(Y_protoset[buffered_indices])
@@ -287,7 +323,9 @@ class CLOPS(BaseLearner):
         return (self.x_buf, self.y_buf)
 
 
-def retrieve_entropy(array): #array is 1xC
+def retrieve_entropy(array):  # array is 1xC
     array = softmax(array)
-    entropy_estimate = entropy(array)  # entropy also accepts logit values (it will normalize it)
+    entropy_estimate = entropy(
+        array
+    )  # entropy also accepts logit values (it will normalize it)
     return entropy_estimate
