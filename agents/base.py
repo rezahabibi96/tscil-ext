@@ -291,9 +291,10 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
             )
 
         if self.use_kd:
-            self.teacher = copy.deepcopy(self.model)  # eval()
+            # agents use kd are lwf and dt2w
+            self.teacher = copy.deepcopy(self.model)  # eval() mode
             if not self.args.teacher_eval:
-                self.teacher.train()
+                self.teacher.train()  # train() mode
 
     @torch.no_grad()
     def evaluate(self, task_stream, path=None):
