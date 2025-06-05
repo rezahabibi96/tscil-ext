@@ -161,9 +161,6 @@ def PositionalEncoding(q_len, d_model, normalize=True):
     return pe
 
 
-SinCosPosEncoding = PositionalEncoding
-
-
 def positional_encoding(pe, learn_pe, q_len, d_model):
     # Positional encoding
     if pe == None:
@@ -202,10 +199,13 @@ def positional_encoding(pe, learn_pe, q_len, d_model):
     return nn.Parameter(W_pos, requires_grad=learn_pe)
 
 
+SinCosPosEncoding = PositionalEncoding
+
+
 ####################### VAE related ############################
-""" Layers """
 
 
+####################### Layers Collection ############################
 class Identity(nn.Module):
     """A nn-module to simply pass on the input data."""
 
@@ -253,6 +253,7 @@ class Reshape(nn.Module):
         return tmpstr
 
 
+####################### LinearExcitability Layer ############################
 def linearExcitability(input, weight, excitability=None, bias=None):
     """Applies a linear transformation to the incoming data: :math:`y = c(xA^T) + b`.
 
@@ -353,6 +354,7 @@ class LinearExcitability(nn.Module):
         )
 
 
+####################### fc Layer ############################
 class fc_layer(nn.Module):
     """Fully connected layer, with possibility of returning "pre-activations".
 
@@ -471,6 +473,7 @@ class fc_layer_split(nn.Module):
         return list
 
 
+####################### MLP Layer ############################
 class MLP(nn.Module):
     """Module for a multi-layer perceptron (MLP).
 
@@ -597,10 +600,6 @@ class MLP(nn.Module):
             x = getattr(self, "fcLayer{}".format(lay_id))(x)
         return (x, intermediate) if return_intermediate else x
 
-    @property
-    def name(self):
-        return self.label
-
     def list_init_layers(self):
         """Return list of modules whose parameters could be initialized differently (i.e., conv- or fc-layers)."""
         list = []
@@ -608,10 +607,12 @@ class MLP(nn.Module):
             list += getattr(self, "fcLayer{}".format(layer_id)).list_init_layers()
         return list
 
+    @property
+    def name(self):
+        return self.label
 
-""" Encoder """
 
-
+####################### Encoders Collection  ############################
 class conv_layer(nn.Module):
     """Standard convolutional layer. Possible to return pre-activations."""
 
