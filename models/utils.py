@@ -805,6 +805,17 @@ class ConvLayers(nn.Module):
         # Return final [x], if requested along with [hidden_act_list] and [pre_act_list]
         return (x, hidden_act_list, pre_act_list) if return_lists else x
 
+    def list_init_layers(self):
+        """Return list of modules whose parameters could be initialized differently (i.e., conv- or fc-layers)."""
+        list = []
+        for layer_id in range(1, self.depth + 1):
+            list += getattr(self, "convLayer{}".format(layer_id)).list_init_layers()
+        return list
+
+    @property
+    def name(self):
+        return self.label
+
     def out_size(self, ts_length, ignore_gp=False):
         """Given [ts_length] of input, return the size of the "final" image that is outputted."""
         out_size = (
@@ -840,21 +851,8 @@ class ConvLayers(nn.Module):
             )
         return layer_list
 
-    def list_init_layers(self):
-        """Return list of modules whose parameters could be initialized differently (i.e., conv- or fc-layers)."""
-        list = []
-        for layer_id in range(1, self.depth + 1):
-            list += getattr(self, "convLayer{}".format(layer_id)).list_init_layers()
-        return list
 
-    @property
-    def name(self):
-        return self.label
-
-
-""" Decoder """
-
-
+####################### Decoders Collection  ############################
 class deconv_layer(nn.Module):
     """Standard "deconvolutional" layer. Possible to return pre-activations."""
 
@@ -1043,16 +1041,6 @@ class DeconvLayers(nn.Module):
         # Return final [x], if requested along with [hidden_act_list] and [pre_act_list]
         return (x, hidden_act_list, pre_act_list) if return_lists else x
 
-    def ts_length(self, in_units):
-        """Given the number of units fed in, return the length of the target ts."""
-        if self.depth > 0:
-            input_ts_length = (
-                in_units / self.in_channels
-            )  # -> length of ts fed to last layer (seen from image)
-            return input_ts_length * 2**self.rl
-        else:
-            return in_units / self.ts_channels
-
     def list_init_layers(self):
         """Return list of modules whose parameters could be initialized differently (i.e., conv- or fc-layers)."""
         list = []
@@ -1063,6 +1051,16 @@ class DeconvLayers(nn.Module):
     @property
     def name(self):
         return self.label
+
+    def ts_length(self, in_units):
+        """Given the number of units fed in, return the length of the target ts."""
+        if self.depth > 0:
+            input_ts_length = (
+                in_units / self.in_channels
+            )  # -> length of ts fed to last layer (seen from image)
+            return input_ts_length * 2**self.rl
+        else:
+            return in_units / self.ts_channels
 
 
 ########################################################
