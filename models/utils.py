@@ -205,7 +205,7 @@ SinCosPosEncoding = PositionalEncoding
 ####################### VAE related ############################
 
 
-####################### Layers Collection ############################
+####################### Layers ############################
 class Identity(nn.Module):
     """A nn-module to simply pass on the input data."""
 
@@ -253,7 +253,7 @@ class Reshape(nn.Module):
         return tmpstr
 
 
-####################### LinearExcitability Layer ############################
+####################### LinearExcitability ############################
 def linearExcitability(input, weight, excitability=None, bias=None):
     """Applies a linear transformation to the incoming data: :math:`y = c(xA^T) + b`.
 
@@ -354,7 +354,7 @@ class LinearExcitability(nn.Module):
         )
 
 
-####################### fc Layer ############################
+####################### fc ############################
 class fc_layer(nn.Module):
     """Fully connected layer, with possibility of returning "pre-activations".
 
@@ -473,7 +473,6 @@ class fc_layer_split(nn.Module):
         return list
 
 
-####################### MLP Layer ############################
 class MLP(nn.Module):
     """Module for a multi-layer perceptron (MLP).
 
@@ -612,7 +611,7 @@ class MLP(nn.Module):
         return self.label
 
 
-####################### Encoders Collection  ############################
+####################### Encoders  ############################
 class conv_layer(nn.Module):
     """Standard convolutional layer. Possible to return pre-activations."""
 
@@ -816,17 +815,6 @@ class ConvLayers(nn.Module):
     def name(self):
         return self.label
 
-    def out_size(self, ts_length, ignore_gp=False):
-        """Given [ts_length] of input, return the size of the "final" image that is outputted."""
-        out_size = (
-            int(np.ceil(ts_length / 2 ** (self.rl))) if self.depth > 0 else ts_length
-        )
-        return 1 if (self.global_pooling and not ignore_gp) else out_size
-
-    def out_units(self, ts_length, ignore_gp=False):
-        """Given [ts_length] of input, return the total number of units in the output."""
-        return self.out_channels * self.out_size(ts_length, ignore_gp=ignore_gp)
-
     def layer_info(self, ts_length):
         """Return list with shape of all hidden layers."""
         layer_list = []
@@ -851,8 +839,19 @@ class ConvLayers(nn.Module):
             )
         return layer_list
 
+    def out_size(self, ts_length, ignore_gp=False):
+        """Given [ts_length] of input, return the size of the "final" image that is outputted."""
+        out_size = (
+            int(np.ceil(ts_length / 2 ** (self.rl))) if self.depth > 0 else ts_length
+        )
+        return 1 if (self.global_pooling and not ignore_gp) else out_size
 
-####################### Decoders Collection  ############################
+    def out_units(self, ts_length, ignore_gp=False):
+        """Given [ts_length] of input, return the total number of units in the output."""
+        return self.out_channels * self.out_size(ts_length, ignore_gp=ignore_gp)
+
+
+####################### Decoders  ############################
 class deconv_layer(nn.Module):
     """Standard "deconvolutional" layer. Possible to return pre-activations."""
 
