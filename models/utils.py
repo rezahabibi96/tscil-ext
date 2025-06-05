@@ -30,6 +30,18 @@ from models.normalization.stoch_norm import StochNorm1d
 import numpy as np
 
 
+class Transpose(nn.Module):
+    def __init__(self, *dims, contiguous=False):
+        super().__init__()
+        self.dims, self.contiguous = dims, contiguous
+
+    def forward(self, x):
+        if self.contiguous:
+            return x.transpose(*self.dims).contiguous()
+        else:
+            return x.transpose(*self.dims)
+
+
 class TransposedLayerNorm(nn.Module):
     def __init__(self, *args, **kwargs):
         super().__init__()
@@ -51,18 +63,6 @@ class InstanceNorm1d_affined(nn.Module):
 
     def forward(self, x):
         return self.layer(x)
-
-
-class Transpose(nn.Module):
-    def __init__(self, *dims, contiguous=False):
-        super().__init__()
-        self.dims, self.contiguous = dims, contiguous
-
-    def forward(self, x):
-        if self.contiguous:
-            return x.transpose(*self.dims).contiguous()
-        else:
-            return x.transpose(*self.dims)
 
 
 class TransposedInstanceNorm1d(nn.Module):
