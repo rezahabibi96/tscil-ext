@@ -611,7 +611,7 @@ class MLP(nn.Module):
         return self.label
 
 
-####################### Encoders  ############################
+####################### Encoders ############################
 class conv_layer(nn.Module):
     """Standard convolutional layer. Possible to return pre-activations."""
 
@@ -851,7 +851,7 @@ class ConvLayers(nn.Module):
         return self.out_channels * self.out_size(ts_length, ignore_gp=ignore_gp)
 
 
-####################### Decoders  ############################
+####################### Decoders ############################
 class deconv_layer(nn.Module):
     """Standard "deconvolutional" layer. Possible to return pre-activations."""
 
