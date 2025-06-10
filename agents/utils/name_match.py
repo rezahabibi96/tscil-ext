@@ -14,7 +14,8 @@ from agents.der import DarkExperienceReplay
 from agents.gr import GenerativeReplay
 from agents.er_sub import ER_on_Subject
 from agents.fast_icarl import FastICARL
-from agents.gcpp import GenerativeClassiferPP
+from agents.gcppv1 import GenerativeClassiferPPv1
+from agents.gcppv2 import GenerativeClassiferPPv2
 
 
 agents = {
@@ -34,7 +35,8 @@ agents = {
     "DER": DarkExperienceReplay,
     "GR": GenerativeReplay,
     "FastICARL": FastICARL,
-    "GCPP": GenerativeClassiferPP,
+    "GCPPv1": GenerativeClassiferPPv1,
+    "GCPPv2": GenerativeClassiferPPv2,
 }
 
 agents_replay = [
@@ -51,5 +53,6 @@ agents_replay = [
 ]
 
 agents_gc = [
-    "GCPP",
+    "GCPPv1",
+    "GCPPv2",
 ]
