@@ -36,7 +36,8 @@ if __name__ == "__main__":
             "Inversion",
             "GR",
             "FastICARL",
-            "GCPP",
+            "GCPPv1",
+            "GCPPv2",
         ],
         help="Continual learning agent",
     )
