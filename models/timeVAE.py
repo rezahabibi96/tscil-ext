@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import numpy as np
 from models.utils import Flatten, Reshape
 import matplotlib.pyplot as plt
@@ -296,28 +297,17 @@ class VariationalAutoencoderConv(nn.Module):
     # COMMENT REMOVED
     # CHECK THE ORIGIN REPO
 
-    def estimate_distance(self, x, prototypes):
-        # TODO
-        # with torch.no_grad():
-        #     z = self.encoder(x)
-        # dists = [torch.norm(z - p, dim=1) for p in prototypes]
-        # dists = torch.stack(dists, dim=1)
-        # return dists
-        pass
-
     def estimate_prototype(self, size):
-        # TODO
-        # x = self.sample(size)
-        # with torch.no_grad():
-        #     z_mean, _, _ = self.encoder(x)
-
-        # prototype = torch.mean(z_mean, dim=0)
-        # return prototype
-
         x = self.sample(size)
         prototype = torch.mean(x, dim=0)
         return prototype
 
-    def estimate_loglikelihood(self):
-        """Generative Classifier"""
-        pass
+    def estimate_distance(self, x, p):
+        x_flat = x.reshape(x.size(0), -1)  # (#batch_size, L*C)
+        p_flat = p.reshape(p.size(0), -1)  # (#learned_classes, L*C)
+
+        x_flat = F.normalize(x_flat, dim=1)
+        p_flat = F.normalize(p_flat, dim=1)
+
+        dist = torch.cdist(x_flat, p_flat, p=2)
+        return dist
