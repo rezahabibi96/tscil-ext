@@ -21,6 +21,12 @@ class GenerativeClassiferPP(BaseLearnerGC):
         self.generators = {}
 
     def learn_task(self, task):
+        pass
+
+    def evaluate(self, task_stream, path=None):
+        pass
+
+    def legacy_learn_task(self, task):
         """
         Basic workflow for learning a task. For particular methods, this function will be overwritten.
         """
@@ -114,7 +120,7 @@ class GenerativeClassiferPP(BaseLearnerGC):
 
         self.after_task(None, None)
 
-    def evaluate(self, task_stream, path=None):
+    def legacy_evaluate(self, task_stream, path=None):
         if self.task_now == 0:
             self.num_tasks = task_stream.n_tasks
             self.Acc_tasks = {
@@ -155,18 +161,10 @@ class GenerativeClassiferPP(BaseLearnerGC):
                     if y.size == 1:
                         y.unsqueeze()
 
-                    # dists = [torch.norm(x - p, dim=(1, 2)) for p in prototypes]
-                    # dists = torch.stack(dists, dim=1)
-
-                    x_flat = x.reshape(x.size(0), -1)  # (#batch_size, L*C)
-                    proto_flat = prototypes.reshape(
-                        prototypes.size(0), -1
-                    )  # (#learned_classes, L*C)
-
-                    x_flat = F.normalize(x_flat, dim=1)
-                    proto_flat = F.normalize(proto_flat, dim=1)
-
-                    dists = torch.cdist(x_flat, proto_flat, p=2)
+                    dists = []
+                    for id, p in enumerate(prototypes):
+                        dist = self.generators[id]["vae"].estimate_distance(x, [p])
+                        dists.append(dist)
 
                     preds = torch.argmin(dists, dim=1)
                     correct += preds.eq(y).sum().item()
