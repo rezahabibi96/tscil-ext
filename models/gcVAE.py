@@ -158,9 +158,9 @@ class GCVariationalAutoencoderConv(nn.Module):
         self.encoder = VaeEncoder(seq_len, feat_dim, latent_dim, hidden_layer_sizes).to(
             device
         )
-        self.decoder = VaeDecoder(
-            seq_len, feat_dim, latent_dim, hidden_layer_sizes, self.encoder.in_lengths
-        ).to(device)
+        # self.decoder = VaeDecoder(
+        #     seq_len, feat_dim, latent_dim, hidden_layer_sizes, self.encoder.in_lengths
+        # ).to(device)
 
     def forward(self, x):
         """
@@ -295,3 +295,13 @@ class GCVariationalAutoencoderConv(nn.Module):
 
     # COMMENT REMOVED
     # CHECK THE ORIGIN REPO
+
+    def create_decoder(self, id):
+        decoder = VaeDecoder(
+            self.seq_len,
+            self.feat_dim,
+            self.latent_dim,
+            self.hidden_layer_sizes,
+            self.encoder.in_lengths,
+        ).to(self.device)
+        setattr(self, "decoder{}".format(id), decoder)
