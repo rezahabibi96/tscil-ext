@@ -303,8 +303,12 @@ class VariationalAutoencoderConv(nn.Module):
         return prototype
 
     def estimate_distance(self, x, p):
-        x_flat = x.reshape(x.size(0), -1)  # (#batch_size, L*C)
-        p_flat = p.reshape(p.size(0), -1)  # (#learned_classes, L*C)
+        # x is (batch_size, L, C)
+        # p is from (L, C) to (1, L, C) <=> 1 is #prototypes
+        p = p.unsqueeze(0)  # equivalent to p = torch.stack([p], dim=0)
+
+        x_flat = x.reshape(x.size(0), -1)  # (batch_size, L*C)
+        p_flat = p.reshape(p.size(0), -1)  # (#prototypes, L*C)
 
         x_flat = F.normalize(x_flat, dim=1)
         p_flat = F.normalize(p_flat, dim=1)
