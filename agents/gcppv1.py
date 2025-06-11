@@ -18,7 +18,6 @@ class GenerativeClassiferPPv1(BaseLearnerGC):
         super(GenerativeClassiferPPv1, self).__init__(args)
         self.input_size = input_size_match[args.data]
         self.batch_size = args.batch_size
-        self.generators = {}
 
     def learn_task(self, task):
         """
@@ -31,7 +30,7 @@ class GenerativeClassiferPPv1(BaseLearnerGC):
             if self.verbose:
                 print(f"Creating the generator {id}")
 
-            vae = VariationalAutoencoderConv(
+            generator = VariationalAutoencoderConv(
                 seq_len=self.input_size[0],
                 feat_dim=self.input_size[1],
                 latent_dim=self.args.feature_dim,  # 2 for visualization
@@ -39,22 +38,21 @@ class GenerativeClassiferPPv1(BaseLearnerGC):
                 device=self.device,
                 recon_wt=self.args.recon_wt,
             )
+
+            setattr(self, "generator{}".format(id), generator)
+
+            ckpt_path_g = self.ckpt_path.replace("/ckpt", f"/generator_ckpt_{id}")
             epochs_g = self.args.epochs_g
-            optimizer_g = Adam(vae.parameters(), lr=self.args.lr_g, betas=(0.9, 0.999))
-            ckpt_path_g = self.ckpt_path.replace("/ckpt", f"/vae_ckpt_{id}")
-            self.generators[id] = {
-                "id": id,
-                "vae": vae,
-                "epochs_g": epochs_g,
-                "optimizer_g": optimizer_g,
-                "ckpt_path_g": ckpt_path_g,
-            }
+
+            optimizer_g = Adam(
+                generator.parameters(), lr=self.args.lr_g, betas=(0.9, 0.999)
+            )
 
             if self.verbose:
                 print(f"Training the generator {id}")
 
             early_stopping = EarlyStopping(
-                path=self.generators[id]["ckpt_path_g"],
+                path=ckpt_path_g,
                 patience=self.args.patience,
                 mode="min",
                 verbose=False,
@@ -74,39 +72,41 @@ class GenerativeClassiferPPv1(BaseLearnerGC):
                 x_val_id, y_val_id, self.batch_size, shuffle=False
             )
 
-            for epoch in range(self.generators[id]["epochs_g"]):
+            for epoch in range(epochs_g):
                 for batch_id, (x, y) in enumerate(train_dataloader):
                     x = x.to(self.device)
                     x_ = None
 
                     # generator's input should be (N, L, C)
                     rnt = 1 / (self.task_now + 1) if self.args.adaptive_weight else 0.5
-                    generator_loss_dict = self.generators[id]["vae"].train_a_batch(
+                    generator_loss_dict = getattr(
+                        self, "generator{}".format(id)
+                    ).train_a_batch(
                         x=x.transpose(1, 2),
-                        optimizer=self.generators[id]["optimizer_g"],
+                        optimizer=optimizer_g,
                         x_=x_,
                         rnt=rnt,
                     )
 
-                train_mse_loss, train_kl_loss = self.generators[id]["vae"].evaluate(
-                    train_dataloader
-                )
+                train_mse_loss, train_kl_loss = getattr(
+                    self, "generator{}".format(id)
+                ).evaluate(train_dataloader)
                 # Validate on val set for early stop
-                val_mse_loss, val_kl_loss = self.generators[id]["vae"].evaluate(
-                    val_dataloader
-                )
+                val_mse_loss, val_kl_loss = getattr(
+                    self, "generator{}".format(id)
+                ).evaluate(val_dataloader)
 
                 if self.verbose:
                     print(
                         "Epoch {}/{}: Recons Loss = {}, KL Divergence = {}".format(
                             epoch + 1,
-                            self.generators[id]["epochs_g"],
+                            epochs_g,
                             train_mse_loss,
                             train_kl_loss,
                         )
                     )
 
-                early_stopping(val_mse_loss, self.generators[id]["vae"])
+                early_stopping(val_mse_loss, getattr(self, "generator{}".format(id)))
                 if early_stopping.early_stop:
                     if self.verbose:
                         print("Early stopping")
@@ -122,11 +122,13 @@ class GenerativeClassiferPPv1(BaseLearnerGC):
                 "test": np.zeros((self.num_tasks, self.num_tasks)),
             }
 
-        prototypes = []  # list of (L, C)
+        prototypes = []  # list of prototypes (L, C)
         for id in self.learned_classes:
-            prototype = self.generators[id]["vae"].estimate_prototype(size=100)
+            prototype = getattr(self, "generator{}".format(id)).estimate_prototype(
+                size=100
+            )
             prototypes.append(prototype)
-        prototypes = torch.stack(prototypes, dim=0)  # (#learned_classes, L, C)
+        # prototypes = torch.stack(prototypes, dim=0)  # (#prototypes, L, C)
 
         eval_modes = ["valid", "test"]  # 'valid' is for checking generalization.
         for mode in eval_modes:
@@ -155,10 +157,13 @@ class GenerativeClassiferPPv1(BaseLearnerGC):
                     if y.size == 1:
                         y.unsqueeze()
 
-                    dists = []
+                    dists = []  # list of distances (batch_size, 1)
                     for id, p in enumerate(prototypes):
-                        dist = self.generators[id]["vae"].estimate_distance(x, [p])
+                        dist = getattr(
+                            self, "generator{}".format(id)
+                        ).estimate_distance(x, p)
                         dists.append(dist)
+                    dists = torch.cat(dists, dim=1)  # (batch_size, #prototypes)
 
                     preds = torch.argmin(dists, dim=1)
                     correct += preds.eq(y).sum().item()
