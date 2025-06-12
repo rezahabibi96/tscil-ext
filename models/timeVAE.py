@@ -310,8 +310,8 @@ class VariationalAutoencoderConv(nn.Module):
         x_flat = x.reshape(x.size(0), -1)  # (batch_size, L*C)
         p_flat = p.reshape(p.size(0), -1)  # (#prototypes, L*C)
 
-        x_flat = F.normalize(x_flat, dim=1)
-        p_flat = F.normalize(p_flat, dim=1)
+        x_flat = F.normalize(x_flat, p=2, dim=1)
+        p_flat = F.normalize(p_flat, p=2, dim=1)
 
         dist = torch.cdist(x_flat, p_flat, p=2)
         return dist
