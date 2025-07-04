@@ -76,6 +76,12 @@ class VaeEncoder(nn.Module):
         z = Sampling()(z_mean, z_log_var)
         return z_mean, z_log_var, z
 
+    def _get_fmap(self, x):
+        hx = self.encoder_conv(x)
+        hx = Flatten()(hx)
+        z_mean = self.encoder_fc1(hx)
+        return z_mean
+
 
 class VaeDecoder(nn.Module):
     def __init__(self, seq_len, feat_dim, latent_dim, hidden_layer_sizes, in_lengths):
@@ -297,21 +303,30 @@ class VariationalAutoencoderConv(nn.Module):
     # COMMENT REMOVED
     # CHECK THE ORIGIN REPO
 
-    def estimate_prototype(self, size):
+    def estimate_prototype(self, size, fmap=True):
         x = self.sample(size)
-        prototype = torch.mean(x, dim=0)
+
+        if fmap:
+            x = self.encoder._get_fmap(x)
+
+        prototype = torch.mean(x, dim=0)  # find alternative to mean
         return prototype
 
-    def estimate_distance(self, x, p):
+    def estimate_distance(self, x, p, fmap=True):
         # x is (batch_size, L, C)
         # p is from (L, C) to (1, L, C) <=> 1 is #prototypes
         p = p.unsqueeze(0)  # equivalent to p = torch.stack([p], dim=0)
 
-        x_flat = x.reshape(x.size(0), -1)  # (batch_size, L*C)
-        p_flat = p.reshape(p.size(0), -1)  # (#prototypes, L*C)
+        if fmap:
+            x = self.encoder._get_fmap(x)
+        else:
+            x = x.reshape(x.size(0), -1)  # (batch_size, L*C)
+            p = p.reshape(p.size(0), -1)  # (#prototypes, L*C)
 
-        x_flat = F.normalize(x_flat, p=2, dim=1)
-        p_flat = F.normalize(p_flat, p=2, dim=1)
+        x = F.normalize(x, p=2, dim=1)
+        p = F.normalize(p, p=2, dim=1)
 
-        dist = torch.cdist(x_flat, p_flat, p=2)
+        # dist = torch.cdist(x, p, p=2)  # find alternative to cdist
+        similarity = torch.matmul(x, p.T)
+        dist = 1 - similarity
         return dist
