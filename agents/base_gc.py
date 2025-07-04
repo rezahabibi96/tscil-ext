@@ -105,7 +105,9 @@ class BaseLearnerGC(nn.Module, metaclass=abc.ABCMeta):
         plot_confusion_matrix(self.y_true_cf, self.y_pred_cf, classes, path)
 
     @torch.no_grad()
-    def feature_space_tsne_visualization(self, task_stream, path, view_generator=True):
+    def feature_space_tsne_visualization(
+        self, task_stream, path, view_generator=True, shared_encoder=True
+    ):
         """featured in evaluate func"""
         for i in range(self.task_now + 1):
             if i == 0:
@@ -124,7 +126,12 @@ class BaseLearnerGC(nn.Module, metaclass=abc.ABCMeta):
 
         # TODO
         # self.generators
-        z_mean, z_log_var, z = self.generator.encoder(x_all.transpose(1, 2))
+        if shared_encoder:
+            # gcppv2
+            z_mean, z_log_var, z = self.generator.encoder(x_all.transpose(1, 2))
+        else:
+            # TODO
+            pass  # ggcpv1
         features = z.cpu().detach().numpy()
 
         np.save(path + "f", features)
