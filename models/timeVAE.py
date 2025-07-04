@@ -146,7 +146,14 @@ class VaeDecoder(nn.Module):
 
 class VariationalAutoencoderConv(nn.Module):
     def __init__(
-        self, seq_len, feat_dim, latent_dim, hidden_layer_sizes, device, recon_wt=3.0
+        self,
+        seq_len,
+        feat_dim,
+        latent_dim,
+        hidden_layer_sizes,
+        device,
+        recon_wt=3.0,
+        fmap=False,
     ):
         super().__init__()
         self.seq_len = seq_len
@@ -154,6 +161,7 @@ class VariationalAutoencoderConv(nn.Module):
         self.latent_dim = latent_dim
         self.hidden_layer_sizes = hidden_layer_sizes
         self.recon_wt = recon_wt
+        self.fmap = fmap
 
         self.total_loss_tracker = AverageMeter()
         self.recon_loss_tracker = AverageMeter()
@@ -303,21 +311,21 @@ class VariationalAutoencoderConv(nn.Module):
     # COMMENT REMOVED
     # CHECK THE ORIGIN REPO
 
-    def estimate_prototype(self, size, fmap=True):
+    def estimate_prototype(self, size):
         x = self.sample(size)
 
-        if fmap:
+        if self.fmap:
             x = self.encoder._get_fmap(x)
 
         prototype = torch.mean(x, dim=0)  # find alternative to mean
         return prototype
 
-    def estimate_distance(self, x, p, fmap=True):
+    def estimate_distance(self, x, p):
         # x is (batch_size, L, C)
         # p is from (L, C) to (1, L, C) <=> 1 is #prototypes
         p = p.unsqueeze(0)  # equivalent to p = torch.stack([p], dim=0)
 
-        if fmap:
+        if self.fmap:
             x = self.encoder._get_fmap(x)
         else:
             x = x.reshape(x.size(0), -1)  # (batch_size, L*C)

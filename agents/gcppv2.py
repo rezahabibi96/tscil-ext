@@ -29,6 +29,8 @@ class GenerativeClassiferPPv2(BaseLearnerGC):
             hidden_layer_sizes=[64, 128, 256, 512],  # [128, 256]
             device=self.device,
             recon_wt=self.args.recon_wt,
+            lambda_kd=0.1,
+            fmap=self.args.fmap,
         )
 
     def learn_task(self, task):

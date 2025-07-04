@@ -37,6 +37,7 @@ class GenerativeClassiferPPv1(BaseLearnerGC):
                 hidden_layer_sizes=[64, 128, 256, 512],  # [128, 256]
                 device=self.device,
                 recon_wt=self.args.recon_wt,
+                fmap=self.args.fmap,
             )
             setattr(self, "generator{}".format(id), generator)
 

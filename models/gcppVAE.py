@@ -147,7 +147,15 @@ class VaeDecoder(nn.Module):
 
 class GCVariationalAutoencoderConv(nn.Module):
     def __init__(
-        self, seq_len, feat_dim, latent_dim, hidden_layer_sizes, device, recon_wt=3.0
+        self,
+        seq_len,
+        feat_dim,
+        latent_dim,
+        hidden_layer_sizes,
+        device,
+        recon_wt=3.0,
+        lambda_kd=0.1,
+        fmap=False,
     ):
         super().__init__()
         self.seq_len = seq_len
@@ -155,7 +163,8 @@ class GCVariationalAutoencoderConv(nn.Module):
         self.latent_dim = latent_dim
         self.hidden_layer_sizes = hidden_layer_sizes
         self.recon_wt = recon_wt
-        self.lambda_kd = 0.1
+        self.lambda_kd = lambda_kd
+        self.fmap = fmap
 
         self.total_loss_tracker = AverageMeter()
         self.recon_loss_tracker = AverageMeter()
@@ -354,21 +363,21 @@ class GCVariationalAutoencoderConv(nn.Module):
         ).to(self.device)
         self.decoders[str(decoder_id)] = decoder
 
-    def estimate_prototype(self, size, decoder_id, fmap=True):
+    def estimate_prototype(self, size, decoder_id):
         x = self.sample(size, decoder_id)
 
-        if fmap:
+        if self.fmap:
             x = self.encoder._get_fmap(x)
 
         prototype = torch.mean(x, dim=0)  # find alternative to mean
         return prototype
 
-    def estimate_distance(self, x, p, fmap=True):
+    def estimate_distance(self, x, p):
         # x is (batch_size, L, C)
         # p is from (128,) to (1, 128) <=> 1 is #prototypes and 128 is latent_dim
         p = p.unsqueeze(0)  # equivalent to p = torch.stack([p], dim=0)
 
-        if fmap:
+        if self.fmap:
             x = self.encoder._get_fmap(x)
         else:
             x = x.reshape(x.size(0), -1)  # (batch_size, 128)
