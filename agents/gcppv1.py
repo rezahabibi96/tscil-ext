@@ -38,19 +38,17 @@ class GenerativeClassiferPPv1(BaseLearnerGC):
                 device=self.device,
                 recon_wt=self.args.recon_wt,
             )
-
             setattr(self, "generator{}".format(id), generator)
 
             ckpt_path_g = self.ckpt_path.replace("/ckpt", f"/generator_ckpt_{id}")
             epochs_g = self.args.epochs_g
 
-            optimizer_g = Adam(
-                generator.parameters(), lr=self.args.lr_g, betas=(0.9, 0.999)
-            )
-
             if self.verbose:
                 print(f"Training the generator {id}")
 
+            optimizer_g = Adam(
+                generator.parameters(), lr=self.args.lr_g, betas=(0.9, 0.999)
+            )
             early_stopping = EarlyStopping(
                 path=ckpt_path_g,
                 patience=self.args.patience,
