@@ -180,6 +180,13 @@ if __name__ == "__main__":
 
     # ######################## Methods-related params ###########################
     # GCPP
+    parser.add_argument(
+        "--fmap",
+        type=boolean_string,
+        default=False,
+        choices=[False, True],
+        help="Use feature map or raw feature for prototype classifier",
+    )
 
     # Experience Replay
     parser.add_argument(
