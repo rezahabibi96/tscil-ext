@@ -7,6 +7,7 @@ from utils.setup_elements import input_size_match
 from utils.data import Dataloader_from_numpy, extract_samples_according_to_labels
 from models.gcppVAE import GCVariationalAutoencoderConv
 from utils.utils import EarlyStopping
+import time
 
 
 class GenerativeClassiferPPv2(BaseLearnerGC):
@@ -32,6 +33,9 @@ class GenerativeClassiferPPv2(BaseLearnerGC):
             lambda_kd=0.1,
             fmap=self.args.fmap,
         )
+
+        self.replay_buffer = {}  # from class id to replay data
+        self.max_replay_per_class = 100  # memory adjust
 
     def learn_task(self, task):
         (x_train, y_train), (x_val, y_val), _ = task
@@ -77,9 +81,27 @@ class GenerativeClassiferPPv2(BaseLearnerGC):
             )
 
             for epoch in range(epochs_g):
+                # retrieve replay
+                x_replay = None
+
+                for cl_id in self.learned_classes:
+                    if cl_id != id and cl_id in self.replay_buffer:
+                        rand_idxs = torch.randperm(self.replay_buffer[cl_id].size(0))[
+                            : self.batch_size // len(self.learned_classes)
+                        ]
+                        x_replay_id = self.replay_buffer[cl_id][rand_idxs]
+                        if x_replay is not None:
+                            x_replay = torch.cat([x_replay, x_replay_id], dim=0)
+                        else:
+                            x_replay = x_replay_id
+
                 for batch_id, (x, y) in enumerate(train_dataloader):
                     x = x.to(self.device)
                     x_ = None
+
+                    if x_replay is not None and epoch > 50:
+                        x_ = x_replay[torch.randperm(x_replay.size(0))]
+                        x_ = x_.transpose(1, 2)
 
                     # generator's input should be (N, L, C)
                     rnt = 1 / (self.task_now + 1) if self.args.adaptive_weight else 0.5
@@ -98,6 +120,7 @@ class GenerativeClassiferPPv2(BaseLearnerGC):
                 val_mse_loss, val_kl_loss = self.generator.evaluate(val_dataloader, id)
 
                 if self.verbose:
+                    print(generator_loss_dict)
                     print(
                         "Epoch {}/{}: Recons Loss = {}, KL Divergence = {}".format(
                             epoch + 1,
@@ -107,18 +130,29 @@ class GenerativeClassiferPPv2(BaseLearnerGC):
                         )
                     )
 
+                # func save_checkpoint in early_stopping is why it took so long
                 early_stopping(val_mse_loss, self.generator)
                 if early_stopping.early_stop:
                     if self.verbose:
                         print("Early stopping")
                     break
 
+            # store replay
+            n_replay = min(self.max_replay_per_class, len(x_train_id))
+            self.replay_buffer[id] = torch.Tensor(x_train_id[:n_replay]).to(self.device)
+
+            # from after_task
+            self.learned_classes += [id]
+            self.generator.copy_encoder()
+
+        # do none
         self.after_task(None, None)
 
     # override method
     def after_task(self, x_train, y_train):
-        self.learned_classes += self.classes_in_task
-        self.generator.copy_encoder()
+        # self.learned_classes += self.classes_in_task # move to after train per class
+        # self.generator.copy_encoder() # move to after train per class
+        pass
 
     def evaluate(self, task_stream, path=None):
         if self.task_now == 0:
