@@ -311,7 +311,9 @@ class VariationalAutoencoderConv(nn.Module):
     # COMMENT REMOVED
     # CHECK THE ORIGIN REPO
 
+    @torch.no_grad()
     def estimate_prototype(self, size):
+        self.eval()
         x = self.sample(size)
 
         if self.fmap:
@@ -320,7 +322,9 @@ class VariationalAutoencoderConv(nn.Module):
         prototype = torch.mean(x, dim=0)  # find alternative to mean
         return prototype
 
+    @torch.no_grad()
     def estimate_distance(self, x, p):
+        self.eval()
         # x is (batch_size, L, C)
         # p is from (L, C) to (1, L, C) <=> 1 is #prototypes
         p = p.unsqueeze(0)  # equivalent to p = torch.stack([p], dim=0)
