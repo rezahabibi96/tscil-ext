@@ -9,6 +9,7 @@ from utils.utils import load_pickle, AverageMeter
 from utils.data import Dataloader_from_numpy
 import math
 from models.utils import *
+import time
 
 
 class Sampling(nn.Module):
@@ -222,7 +223,7 @@ class GCVariationalAutoencoderConv(nn.Module):
         # reconst_loss += get_reconst_loss_by_axis(x, x_recons, axis=[1])    # by feature axis
         return reconst_loss
 
-    def _get_loss(self, x, decoder_id):
+    def _get_loss(self, x, decoder_id, x_=None):
         z_mean, z_log_var, z = self.encoder(x)
         # recon = self.decoder(z)
         # decoder = getattr(self, "decoder{}".format(decoder_id))
@@ -232,7 +233,9 @@ class GCVariationalAutoencoderConv(nn.Module):
         kd_loss = torch.tensor(0.0, device=x.device)
 
         if hasattr(self, "encoder_teacher") and self.encoder_teacher is not None:
-            kd_loss = self._get_kd_loss(x)
+            if x_ is not None:
+                kd_loss = self._get_kd_loss(x_)
+                # otherwise kd_loss is 0.0
 
         # kl_loss = torch.mean(torch.sum(kl_loss, dim=1)) / (self.seq_len * self.feat_dim)
         # total_loss = self.recon_wt * recon_loss + (1-self.recon_wt) * kl_loss
@@ -247,15 +250,15 @@ class GCVariationalAutoencoderConv(nn.Module):
         optimizer.zero_grad()
 
         # Current data
-        total_loss, recon_loss, kl_loss, kd_loss = self._get_loss(x, decoder_id)
+        total_loss, recon_loss, kl_loss, kd_loss = self._get_loss(x, decoder_id, x_)
 
         # Replay data
-        if x_ is not None:
-            total_loss_r, recon_loss_r, kl_loss_r, kd_loss_r = self._get_loss(
-                x_, decoder_id
-            )
-            # total_loss = total_loss + total_loss_r
-            total_loss = rnt * total_loss + (1 - rnt) * total_loss_r
+        # if x_ is not None:
+        #     total_loss_r, recon_loss_r, kl_loss_r, kd_loss_r = self._get_loss(
+        #         x_, decoder_id
+        #     )
+        #     # total_loss = total_loss + total_loss_r
+        #     total_loss = rnt * total_loss + (1 - rnt) * total_loss_r
 
         total_loss.backward()
         optimizer.step()
@@ -268,10 +271,11 @@ class GCVariationalAutoencoderConv(nn.Module):
         self.kl_loss_tracker.update(kl_loss, x.size(0))
         self.kd_loss_tracker.update(kd_loss, x.size(0))
 
-        if x_ is not None:
-            self.replay_recon_loss_tracker.update(recon_loss_r, x_.size(0))
-            self.replay_kl_loss_tracker.update(kl_loss_r, x_.size(0))
-            self.replay_kd_loss_tracker.update(kd_loss_r, x_.size(0))
+        # Replay loss
+        # if x_ is not None:
+        #     self.replay_recon_loss_tracker.update(recon_loss_r, x_.size(0))
+        #     self.replay_kl_loss_tracker.update(kl_loss_r, x_.size(0))
+        #     self.replay_kd_loss_tracker.update(kd_loss_r, x_.size(0))
 
         return {
             "loss": self.total_loss_tracker.avg(),
@@ -363,7 +367,9 @@ class GCVariationalAutoencoderConv(nn.Module):
         ).to(self.device)
         self.decoders[str(decoder_id)] = decoder
 
+    @torch.no_grad()
     def estimate_prototype(self, size, decoder_id):
+        self.eval()
         x = self.sample(size, decoder_id)
 
         if self.fmap:
@@ -372,7 +378,9 @@ class GCVariationalAutoencoderConv(nn.Module):
         prototype = torch.mean(x, dim=0)  # find alternative to mean
         return prototype
 
+    @torch.no_grad()
     def estimate_distance(self, x, p):
+        self.eval()
         # x is (batch_size, L, C)
         # p is from (128,) to (1, 128) <=> 1 is #prototypes and 128 is latent_dim
         p = p.unsqueeze(0)  # equivalent to p = torch.stack([p], dim=0)
