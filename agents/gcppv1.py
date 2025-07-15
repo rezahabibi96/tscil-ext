@@ -36,8 +36,8 @@ class GenerativeClassiferPPv1(BaseLearnerGC):
                 latent_dim=self.args.feature_dim,  # 2 for visualization
                 hidden_layer_sizes=[64, 128, 256, 512],  # [128, 256]
                 device=self.device,
-                recon_wt=self.args.recon_wt,
                 fmap=self.args.fmap,
+                recon_wt=self.args.recon_wt,
             )
             setattr(self, "generator{}".format(id), generator)
 
@@ -81,7 +81,7 @@ class GenerativeClassiferPPv1(BaseLearnerGC):
                     generator_loss_dict = getattr(
                         self, "generator{}".format(id)
                     ).train_a_batch(
-                        x=x.transpose(1, 2),
+                        x=x.transpose(1, 2),  # from (N, C, L) to (N, L, C)
                         optimizer=optimizer_g,
                         x_=x_,
                         rnt=rnt,
@@ -111,7 +111,18 @@ class GenerativeClassiferPPv1(BaseLearnerGC):
                         print("Early stopping")
                     break
 
+            # from after_task
+            self.learned_classes += [id]
+            self.generator.copy_encoder()
+
+        # do none
         self.after_task(None, None)
+
+    # override method
+    def after_task(self, x_train, y_train):
+        # self.learned_classes += self.classes_in_task # move to after train per class
+        # self.generator.copy_encoder() # move to after train per class
+        pass
 
     def evaluate(self, task_stream, path=None):
         if self.task_now == 0:
