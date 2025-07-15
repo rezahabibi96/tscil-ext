@@ -75,6 +75,12 @@ class VaeEncoder(nn.Module):
         hx = Flatten()(hx)
         z_mean = self.encoder_fc1(hx)
         z_log_var = self.encoder_fc2(hx)
+        # ==================== DIAGNOSIS ====================
+        # comment if not using kd and rd
+        z_mean = torch.clamp(z_mean, min=-5.0, max=5.0)
+        z_log_var = torch.clamp(z_log_var, min=-5.0, max=5.0)
+        # comment if not using kd and rd
+        # ==================== DIAGNOSIS ====================
         z = Sampling()(z_mean, z_log_var)
         return z_mean, z_log_var, z
 
@@ -82,7 +88,16 @@ class VaeEncoder(nn.Module):
         hx = self.encoder_conv(x)
         hx = Flatten()(hx)
         z_mean = self.encoder_fc1(hx)
+        z_log_var = self.encoder_fc2(hx)
+        # ==================== DIAGNOSIS ====================
+        # comment if not using kd and rd
+        z_mean = torch.clamp(z_mean, min=-10, max=10)
+        z_log_var = torch.clamp(z_log_var, min=-10, max=10)
+        # comment if not using kd and rd
+        # ==================== DIAGNOSIS ====================
         return z_mean
+        # z = Sampling()(z_mean, z_log_var)
+        # return z_mean, z_log_var, z
 
 
 class VaeDecoder(nn.Module):
@@ -154,18 +169,18 @@ class GCVariationalAutoencoderConv(nn.Module):
         latent_dim,
         hidden_layer_sizes,
         device,
-        recon_wt=3.0,
+        fmap,
         lambda_kd=0.1,
-        fmap=False,
+        recon_wt=3.0,
     ):
         super().__init__()
         self.seq_len = seq_len
         self.feat_dim = feat_dim
         self.latent_dim = latent_dim
         self.hidden_layer_sizes = hidden_layer_sizes
-        self.recon_wt = recon_wt
-        self.lambda_kd = lambda_kd
         self.fmap = fmap
+        self.lambda_kd = lambda_kd
+        self.recon_wt = recon_wt
 
         self.total_loss_tracker = AverageMeter()
         self.recon_loss_tracker = AverageMeter()
@@ -205,7 +220,7 @@ class GCVariationalAutoencoderConv(nn.Module):
         z_student_norm = F.normalize(z_student, p=2, dim=1)  # (batch_size, latent_dim)
 
         kd_loss = 1 - F.cosine_similarity(z_teacher_norm, z_student_norm, dim=1).mean()
-        return kd_loss
+        return kd_loss, z_teacher, z_student
 
     def _get_recon_loss(self, x, x_recons):
         def get_reconst_loss_by_axis(x, x_c, dim):
@@ -225,6 +240,7 @@ class GCVariationalAutoencoderConv(nn.Module):
 
     def _get_loss(self, x, decoder_id, x_=None):
         z_mean, z_log_var, z = self.encoder(x)
+
         # recon = self.decoder(z)
         # decoder = getattr(self, "decoder{}".format(decoder_id))
         recon = self.decoders[str(decoder_id)](z)
@@ -232,9 +248,10 @@ class GCVariationalAutoencoderConv(nn.Module):
         kl_loss = -0.5 * (1 + z_log_var - torch.square(z_mean) - torch.exp(z_log_var))
         kd_loss = torch.tensor(0.0, device=x.device)
 
+        z_teacher, z_student = None, None
         if hasattr(self, "encoder_teacher") and self.encoder_teacher is not None:
             if x_ is not None:
-                kd_loss = self._get_kd_loss(x_)
+                kd_loss, z_teacher, z_student = self._get_kd_loss(x_)
                 # otherwise kd_loss is 0.0
 
         # kl_loss = torch.mean(torch.sum(kl_loss, dim=1)) / (self.seq_len * self.feat_dim)
@@ -242,6 +259,28 @@ class GCVariationalAutoencoderConv(nn.Module):
 
         kl_loss = torch.sum(torch.sum(kl_loss, dim=1))
         total_loss = self.recon_wt * recon_loss + kl_loss + self.lambda_kd * kd_loss
+
+        # ==================== DIAGNOSIS ====================
+        # print(
+        #     "z_mean std:",
+        #     z_mean.std().item(),
+        #     "log_var max:",
+        #     z_log_var.max().item(),
+        #     "z std:",
+        #     z.std().item(),
+        #     "recon mean:",
+        #     recon.mean().item(),
+        #     "kd_loss mean:",
+        #     kd_loss.mean().item(),
+        #     "kl_loss mean:",
+        #     kl_loss.mean().item(),
+        #     "z_teacher std:",
+        #     z_teacher.std().item() if z_teacher is not None else 0,
+        #     "z_student std:",
+        #     z_student.std().item() if z_student is not None else 0,
+        # )
+        # print()
+        # ==================== DIAGNOSIS ====================
 
         return total_loss, recon_loss, kl_loss, kd_loss
 
@@ -261,6 +300,10 @@ class GCVariationalAutoencoderConv(nn.Module):
         #     total_loss = rnt * total_loss + (1 - rnt) * total_loss_r
 
         total_loss.backward()
+        # ==================== DIAGNOSIS ====================
+        # torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=5.0)
+        # torch.nn.utils.clip_grad_value_(self.parameters(), clip_value=1.0)
+        # ==================== DIAGNOSIS ====================
         optimizer.step()
 
         self.total_loss_tracker.update(
