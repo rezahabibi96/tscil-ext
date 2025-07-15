@@ -29,13 +29,16 @@ class GenerativeClassiferPPv2(BaseLearnerGC):
             latent_dim=self.args.feature_dim,  # 2 for visualization
             hidden_layer_sizes=[64, 128, 256, 512],  # [128, 256]
             device=self.device,
-            recon_wt=self.args.recon_wt,
-            lambda_kd=0.1,
             fmap=self.args.fmap,
+            lambda_kd=self.args.lambda_kd,
+            recon_wt=self.args.recon_wt,
         )
 
-        self.replay_buffer = {}  # from class id to replay data
-        self.max_replay_per_class = 100  # memory adjust
+        self.kd = False
+        self.replay = False
+        self.buffer = {}  # from class id to replay data
+        self.max_replay_per_class = 100
+        self.warmup_epoch = 50
 
     def learn_task(self, task):
         (x_train, y_train), (x_val, y_val), _ = task
@@ -81,32 +84,35 @@ class GenerativeClassiferPPv2(BaseLearnerGC):
             )
 
             for epoch in range(epochs_g):
-                # retrieve replay
                 x_replay = None
 
-                for cl_id in self.learned_classes:
-                    if cl_id != id and cl_id in self.replay_buffer:
-                        rand_idxs = torch.randperm(self.replay_buffer[cl_id].size(0))[
-                            : self.batch_size // len(self.learned_classes)
-                        ]
-                        x_replay_id = self.replay_buffer[cl_id][rand_idxs]
-                        if x_replay is not None:
-                            x_replay = torch.cat([x_replay, x_replay_id], dim=0)
-                        else:
-                            x_replay = x_replay_id
+                if self.replay:
+                    for cl_id in self.learned_classes:
+                        if cl_id != id and cl_id in self.buffer:
+                            rand_idxs = torch.randperm(self.buffer[cl_id].size(0))[
+                                : self.batch_size // len(self.learned_classes)
+                            ]
+                            x_replay_id = self.buffer[cl_id][rand_idxs]
+                            if x_replay is not None:
+                                x_replay = torch.cat([x_replay, x_replay_id], dim=0)
+                            else:
+                                x_replay = x_replay_id
 
                 for batch_id, (x, y) in enumerate(train_dataloader):
                     x = x.to(self.device)
                     x_ = None
 
-                    if x_replay is not None and epoch > 50:
-                        x_ = x_replay[torch.randperm(x_replay.size(0))]
-                        x_ = x_.transpose(1, 2)
+                    if epoch > self.warmup_epoch:
+                        if self.kd and not self.replay:
+                            x_ = x.to(self.device).transpose(1, 2)
+                        elif self.kd and self.replay and x_replay is not None:
+                            x_ = x_replay[torch.randperm(x_replay.size(0))]
+                            x_ = x_.to(self.device).transpose(1, 2)
 
                     # generator's input should be (N, L, C)
                     rnt = 1 / (self.task_now + 1) if self.args.adaptive_weight else 0.5
                     generator_loss_dict = self.generator.train_a_batch(
-                        x=x.transpose(1, 2),
+                        x=x.transpose(1, 2),  # from (N, C, L) to (N, L, C)
                         optimizer=optimizer_g,
                         decoder_id=id,
                         x_=x_,
@@ -120,7 +126,6 @@ class GenerativeClassiferPPv2(BaseLearnerGC):
                 val_mse_loss, val_kl_loss = self.generator.evaluate(val_dataloader, id)
 
                 if self.verbose:
-                    print(generator_loss_dict)
                     print(
                         "Epoch {}/{}: Recons Loss = {}, KL Divergence = {}".format(
                             epoch + 1,
@@ -138,8 +143,9 @@ class GenerativeClassiferPPv2(BaseLearnerGC):
                     break
 
             # store replay
-            n_replay = min(self.max_replay_per_class, len(x_train_id))
-            self.replay_buffer[id] = torch.Tensor(x_train_id[:n_replay]).to(self.device)
+            if self.replay and self.max_replay_per_class != 0:
+                n_replay = min(self.max_replay_per_class, len(x_train_id))
+                self.buffer[id] = torch.Tensor(x_train_id[:n_replay]).to(self.device)
 
             # from after_task
             self.learned_classes += [id]
