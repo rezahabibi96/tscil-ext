@@ -80,7 +80,10 @@ class VaeEncoder(nn.Module):
         hx = self.encoder_conv(x)
         hx = Flatten()(hx)
         z_mean = self.encoder_fc1(hx)
+        z_log_var = self.encoder_fc2(hx)
         return z_mean
+        # z = Sampling()(z_mean, z_log_var)
+        # return z_mean, z_log_var, z
 
 
 class VaeDecoder(nn.Module):
@@ -152,16 +155,16 @@ class VariationalAutoencoderConv(nn.Module):
         latent_dim,
         hidden_layer_sizes,
         device,
+        fmap,
         recon_wt=3.0,
-        fmap=False,
     ):
         super().__init__()
         self.seq_len = seq_len
         self.feat_dim = feat_dim
         self.latent_dim = latent_dim
         self.hidden_layer_sizes = hidden_layer_sizes
-        self.recon_wt = recon_wt
         self.fmap = fmap
+        self.recon_wt = recon_wt
 
         self.total_loss_tracker = AverageMeter()
         self.recon_loss_tracker = AverageMeter()
