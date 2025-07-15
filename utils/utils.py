@@ -91,6 +91,7 @@ class EarlyStopping:
 
         if self.best_score is None:
             self.best_score = score
+            # comment save_checkpoint if not saving the model due to it can cause long runtime
             self.save_checkpoint(val_metric, model)
         elif score < self.best_score + self.delta:
             self.counter += 1
@@ -102,6 +103,7 @@ class EarlyStopping:
                 self.early_stop = True
         else:
             self.best_score = score
+            # comment save_checkpoint if not saving the model due to it can cause long runtime
             self.save_checkpoint(val_metric, model)
             self.counter = 0
 
