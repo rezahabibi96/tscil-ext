@@ -183,10 +183,25 @@ if __name__ == "__main__":
     parser.add_argument(
         "--fmap",
         type=boolean_string,
-        default=False,
+        default=True,
         choices=[False, True],
         help="Use feature map or raw feature for prototype classifier",
     )
+    parser.add_argument(
+        "--kd",
+        type=boolean_string,
+        default=True,
+        choices=[False, True],
+        help="Use KD",
+    )
+    parser.add_argument(
+        "--replay",
+        type=boolean_string,
+        default=True,
+        choices=[False, True],
+        help="Use replay",
+    )
+    parser.add_argument("--lambda_kd", type=float, default=0.1)
 
     # Experience Replay
     parser.add_argument(
