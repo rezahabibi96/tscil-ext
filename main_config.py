@@ -36,8 +36,8 @@ if __name__ == "__main__":
             "Inversion",
             "GR",
             "FastICARL",
-            "GCPPv1",
-            "GCPPv2",
+            "GCPPV1",
+            "GCPPV2",
         ],
         help="Continual learning agent",
     )
@@ -182,6 +182,7 @@ if __name__ == "__main__":
     # GCPP
     parser.add_argument(
         "--fmap",
+        dest="fmap",
         type=boolean_string,
         default=True,
         choices=[False, True],
@@ -189,6 +190,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--kd",
+        dest="kd",
         type=boolean_string,
         default=True,
         choices=[False, True],
@@ -196,12 +198,19 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--replay",
+        dest="replay",
         type=boolean_string,
         default=True,
         choices=[False, True],
         help="Use replay",
     )
-    parser.add_argument("--lambda_kd", type=float, default=0.1)
+    parser.add_argument(
+        "--lambda_kd",
+        dest="lambda_kd",
+        type=float,
+        default=0.1,
+        help="lambda for KD loss on feature map",
+    )
 
     # Experience Replay
     parser.add_argument(
