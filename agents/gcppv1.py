@@ -132,7 +132,7 @@ class GenerativeClassiferPlusPlusV1(BaseLearnerGCPP):
                 "test": np.zeros((self.num_tasks, self.num_tasks)),
             }
 
-        prototypes = []  # list of prototypes (L, C)
+        prototypes = []  # list of prototypes with each shape (L, C)
         for id in self.learned_classes:
             prototype = getattr(self, "generator{}".format(id)).estimate_prototype(
                 size=100
@@ -167,7 +167,7 @@ class GenerativeClassiferPlusPlusV1(BaseLearnerGCPP):
                     if y.size == 1:
                         y.unsqueeze()
 
-                    dists = []  # list of distances (batch_size, 1)
+                    dists = []  # list of distances with each shape (#prototypes, )
                     for id, p in enumerate(prototypes):
                         dist = getattr(
                             self, "generator{}".format(id)
