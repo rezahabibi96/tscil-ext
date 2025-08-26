@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from agents.base_gc import BaseLearnerGC
+from agents.base_gc import BaseLearnerGenerativeClassifier
 from torch.optim import Adam
 import torch.nn.functional as F
 from utils.setup_elements import input_size_match
@@ -9,13 +9,13 @@ from models.timeVAE import VariationalAutoencoderConv
 from utils.utils import EarlyStopping
 
 
-class GenerativeClassiferPPv1(BaseLearnerGC):
+class GenerativeClassiferPlusPlusV1(BaseLearnerGenerativeClassifier):
     """
     data-free prototype-based generative classifier with latent distillation
     """
 
     def __init__(self, args):
-        super(GenerativeClassiferPPv1, self).__init__(args)
+        super(GenerativeClassiferPlusPlusV1, self).__init__(args)
         self.input_size = input_size_match[args.data]
         self.batch_size = args.batch_size
 

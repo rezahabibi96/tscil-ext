@@ -12,9 +12,9 @@ from sklearn.manifold import TSNE
 from utils.metrics import plot_confusion_matrix
 
 
-class BaseLearnerGC(nn.Module, metaclass=abc.ABCMeta):
+class BaseLearnerGenerativeClassifier(nn.Module, metaclass=abc.ABCMeta):
     def __init__(self, args: argparse.Namespace):
-        super(BaseLearnerGC, self).__init__()
+        super(BaseLearnerGenerativeClassifier, self).__init__()
         self.scheduler = None
 
         self.args = args

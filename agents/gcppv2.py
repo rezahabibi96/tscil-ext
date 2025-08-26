@@ -1,29 +1,29 @@
 import torch
 import numpy as np
-from agents.base_gc import BaseLearnerGC
+from agents.base_gc import BaseLearnerGenerativeClassifier
 from torch.optim import Adam
 import torch.nn.functional as F
 from utils.setup_elements import input_size_match
 from utils.data import Dataloader_from_numpy, extract_samples_according_to_labels
-from models.gcppVAE import GCVariationalAutoencoderConv
+from models.gcppVAE import GCPPVariationalAutoencoderConv
 from utils.utils import EarlyStopping
 import time
 
 
-class GenerativeClassiferPPv2(BaseLearnerGC):
+class GenerativeClassiferPlusPlusV2(BaseLearnerGenerativeClassifier):
     """
     data-free prototype-based generative classifier with latent distillation
     """
 
     def __init__(self, args):
-        super(GenerativeClassiferPPv2, self).__init__(args)
+        super(GenerativeClassiferPlusPlusV2, self).__init__(args)
         self.input_size = input_size_match[args.data]
         self.batch_size = args.batch_size
 
         if self.verbose:
             print(f"Creating the base generator with the shared encoder")
 
-        self.generator = GCVariationalAutoencoderConv(
+        self.generator = GCPPVariationalAutoencoderConv(
             seq_len=self.input_size[0],
             feat_dim=self.input_size[1],
             latent_dim=self.args.feature_dim,  # 2 for visualization
