@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from agents.base_gc import BaseLearnerGenerativeClassifier
+from agents.base_gcpp import BaseLearnerGCPP
 from torch.optim import Adam
 import torch.nn.functional as F
 from utils.setup_elements import input_size_match
@@ -9,7 +9,7 @@ from models.timeVAE import VariationalAutoencoderConv
 from utils.utils import EarlyStopping
 
 
-class GenerativeClassiferPlusPlusV1(BaseLearnerGenerativeClassifier):
+class GenerativeClassiferPlusPlusV1(BaseLearnerGCPP):
     """
     data-free prototype-based generative classifier with latent distillation
     """
