@@ -181,6 +181,14 @@ if __name__ == "__main__":
     # ######################## Methods-related params ###########################
     # GCPP
     parser.add_argument(
+        "--replay",
+        dest="replay",
+        type=boolean_string,
+        default=True,
+        choices=[False, True],
+        help="Use replay",
+    )
+    parser.add_argument(
         "--fmap",
         dest="fmap",
         type=boolean_string,
@@ -197,19 +205,11 @@ if __name__ == "__main__":
         help="Use KD",
     )
     parser.add_argument(
-        "--replay",
-        dest="replay",
-        type=boolean_string,
-        default=True,
-        choices=[False, True],
-        help="Use replay",
-    )
-    parser.add_argument(
         "--lambda_kd",
         dest="lambda_kd",
         type=float,
         default=0.1,
-        help="lambda for KD loss",
+        help="lambda for KD loss func",
     )
 
     # Experience Replay

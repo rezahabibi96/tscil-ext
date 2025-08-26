@@ -30,15 +30,15 @@ class GenerativeClassiferPlusPlusV2(BaseLearnerGCPP):
             hidden_layer_sizes=[64, 128, 256, 512],  # [128, 256]
             device=self.device,
             fmap=self.args.fmap,
+            kd=self.args.kd,
             lambda_kd=self.args.lambda_kd,
             recon_wt=self.args.recon_wt,
         )
 
-        self.kd = False
-        self.replay = False
-        self.buffer = {}  # from class id to replay data
-        self.max_replay_per_class = 100
-        self.warmup_epoch = 50
+        self.buffer = {}
+        self.warmup_step = 50
+        self.max_mem_per_class = 100
+        self.replay = self.args.replay
 
     def learn_task(self, task):
         (x_train, y_train), (x_val, y_val), _ = task
@@ -102,10 +102,8 @@ class GenerativeClassiferPlusPlusV2(BaseLearnerGCPP):
                     x = x.to(self.device)
                     x_ = None
 
-                    if epoch > self.warmup_epoch:
-                        if self.kd and not self.replay:
-                            x_ = x.to(self.device).transpose(1, 2)
-                        elif self.kd and self.replay and x_replay is not None:
+                    if epoch > self.warmup_step:
+                        if self.replay and x_replay is not None:
                             x_ = x_replay[torch.randperm(x_replay.size(0))]
                             x_ = x_.to(self.device).transpose(1, 2)
 
@@ -143,8 +141,8 @@ class GenerativeClassiferPlusPlusV2(BaseLearnerGCPP):
                     break
 
             # store replay
-            if self.replay and self.max_replay_per_class != 0:
-                n_replay = min(self.max_replay_per_class, len(x_train_id))
+            if self.replay and self.max_mem_per_class != 0:
+                n_replay = min(self.max_mem_per_class, len(x_train_id))
                 self.buffer[id] = torch.Tensor(x_train_id[:n_replay]).to(self.device)
 
             # from after_task
@@ -168,7 +166,7 @@ class GenerativeClassiferPlusPlusV2(BaseLearnerGCPP):
                 "test": np.zeros((self.num_tasks, self.num_tasks)),
             }
 
-        prototypes = []  # list of prototypes (L, C)
+        prototypes = []  # list of prototypes with each shape (L, C)
         for id in self.learned_classes:
             prototype = self.generator.estimate_prototype(size=100, decoder_id=id)
             prototypes.append(prototype)
@@ -201,7 +199,7 @@ class GenerativeClassiferPlusPlusV2(BaseLearnerGCPP):
                     if y.size == 1:
                         y.unsqueeze()
 
-                    dists = []  # list of distances (#prototypes, )
+                    dists = []  # list of distances with each shape (#prototypes, )
                     for id, p in enumerate(prototypes):
                         dist = self.generator.estimate_distance(x, p)
                         dists.append(dist)

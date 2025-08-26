@@ -105,6 +105,7 @@ class GenerativeClassiferPlusPlusV1(BaseLearnerGCPP):
                         )
                     )
 
+                # func save_checkpoint in early_stopping is why it took so long
                 early_stopping(val_mse_loss, getattr(self, "generator{}".format(id)))
                 if early_stopping.early_stop:
                     if self.verbose:

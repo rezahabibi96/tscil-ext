@@ -161,7 +161,7 @@ class VaeDecoder(nn.Module):
         return x_decoded
 
 
-class GCVariationalAutoencoderConv(nn.Module):
+class GCPPVariationalAutoencoderConv(nn.Module):
     def __init__(
         self,
         seq_len,
@@ -170,6 +170,7 @@ class GCVariationalAutoencoderConv(nn.Module):
         hidden_layer_sizes,
         device,
         fmap,
+        kd,
         lambda_kd=0.1,
         recon_wt=3.0,
     ):
@@ -179,6 +180,7 @@ class GCVariationalAutoencoderConv(nn.Module):
         self.latent_dim = latent_dim
         self.hidden_layer_sizes = hidden_layer_sizes
         self.fmap = fmap
+        self.kd = kd
         self.lambda_kd = lambda_kd
         self.recon_wt = recon_wt
 
@@ -220,7 +222,7 @@ class GCVariationalAutoencoderConv(nn.Module):
         z_student_norm = F.normalize(z_student, p=2, dim=1)  # (batch_size, latent_dim)
 
         kd_loss = 1 - F.cosine_similarity(z_teacher_norm, z_student_norm, dim=1).mean()
-        return kd_loss, z_teacher, z_student
+        return kd_loss
 
     def _get_recon_loss(self, x, x_recons):
         def get_reconst_loss_by_axis(x, x_c, dim):
@@ -248,39 +250,18 @@ class GCVariationalAutoencoderConv(nn.Module):
         kl_loss = -0.5 * (1 + z_log_var - torch.square(z_mean) - torch.exp(z_log_var))
         kd_loss = torch.tensor(0.0, device=x.device)
 
-        z_teacher, z_student = None, None
         if hasattr(self, "encoder_teacher") and self.encoder_teacher is not None:
-            if x_ is not None:
-                kd_loss, z_teacher, z_student = self._get_kd_loss(x_)
-                # otherwise kd_loss is 0.0
+            if self.kd:
+                if x_ is not None:
+                    kd_loss = self._get_kd_loss(x_)
+                else:
+                    kd_loss = self._get_kd_loss(x)
 
         # kl_loss = torch.mean(torch.sum(kl_loss, dim=1)) / (self.seq_len * self.feat_dim)
         # total_loss = self.recon_wt * recon_loss + (1-self.recon_wt) * kl_loss
 
         kl_loss = torch.sum(torch.sum(kl_loss, dim=1))
         total_loss = self.recon_wt * recon_loss + kl_loss + self.lambda_kd * kd_loss
-
-        # ==================== DIAGNOSIS ====================
-        # print(
-        #     "z_mean std:",
-        #     z_mean.std().item(),
-        #     "log_var max:",
-        #     z_log_var.max().item(),
-        #     "z std:",
-        #     z.std().item(),
-        #     "recon mean:",
-        #     recon.mean().item(),
-        #     "kd_loss mean:",
-        #     kd_loss.mean().item(),
-        #     "kl_loss mean:",
-        #     kl_loss.mean().item(),
-        #     "z_teacher std:",
-        #     z_teacher.std().item() if z_teacher is not None else 0,
-        #     "z_student std:",
-        #     z_student.std().item() if z_student is not None else 0,
-        # )
-        # print()
-        # ==================== DIAGNOSIS ====================
 
         return total_loss, recon_loss, kl_loss, kd_loss
 
@@ -291,6 +272,7 @@ class GCVariationalAutoencoderConv(nn.Module):
         # Current data
         total_loss, recon_loss, kl_loss, kd_loss = self._get_loss(x, decoder_id, x_)
 
+        # Original code
         # Replay data
         # if x_ is not None:
         #     total_loss_r, recon_loss_r, kl_loss_r, kd_loss_r = self._get_loss(
@@ -298,12 +280,10 @@ class GCVariationalAutoencoderConv(nn.Module):
         #     )
         #     # total_loss = total_loss + total_loss_r
         #     total_loss = rnt * total_loss + (1 - rnt) * total_loss_r
+        # it no longer applies
+        # x and x_ may differ in class and may affect the decoder_id
 
         total_loss.backward()
-        # ==================== DIAGNOSIS ====================
-        # torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=5.0)
-        # torch.nn.utils.clip_grad_value_(self.parameters(), clip_value=1.0)
-        # ==================== DIAGNOSIS ====================
         optimizer.step()
 
         self.total_loss_tracker.update(
@@ -425,14 +405,14 @@ class GCVariationalAutoencoderConv(nn.Module):
     def estimate_distance(self, x, p):
         self.eval()
         # x is (batch_size, L, C)
-        # p is from (128,) to (1, 128) <=> 1 is #prototypes and 128 is latent_dim
+        # p is from (L, C) to (1, L, C) <=> 1 is #prototypes
         p = p.unsqueeze(0)  # equivalent to p = torch.stack([p], dim=0)
 
         if self.fmap:
             x = self.encoder._get_fmap(x)
         else:
-            x = x.reshape(x.size(0), -1)  # (batch_size, 128)
-            p = p.reshape(p.size(0), -1)  # (#prototypes, 128)
+            x = x.reshape(x.size(0), -1)  # (batch_size, L*C)
+            p = p.reshape(p.size(0), -1)  # (#prototypes, L*C)
 
         x = F.normalize(x, p=2, dim=1)
         p = F.normalize(p, p=2, dim=1)
