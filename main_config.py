@@ -209,7 +209,7 @@ if __name__ == "__main__":
         dest="lambda_kd",
         type=float,
         default=0.1,
-        help="lambda for KD loss on feature map",
+        help="lambda for KD loss",
     )
 
     # Experience Replay
