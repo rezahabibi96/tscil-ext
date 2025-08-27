@@ -124,6 +124,7 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
             )
             print("\n--> Class: {}".format(self.classes_in_task))
 
+    # this with train_epoch are the tightly coupled with agent-specific
     def learn_task(self, task):
         """
         Basic workflow for learning a task. For particular methods, this function will be overwritten.
@@ -153,12 +154,13 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
             # Train for one epoch
             epoch_loss_train, epoch_acc_train = self.train_epoch(
                 train_dataloader, epoch=epoch
-            )
+            )  # train_epoch does not use any cross_entropy_epoch_run in any mode
+            # cross_entropy_epoch_run with train mode only used by SequentialFineTune
 
             # Test on val set for early stop
             epoch_loss_val, epoch_acc_val = self.cross_entropy_epoch_run(
                 val_dataloader, mode="val"
-            )  # val mode is on purpose so tht ncm_classifier will not be checked in cross_entropy_epoch_run
+            )  # val mode is on purpose so tht ncm_classifier & torch_grad will not be used in cross_entropy_epoch_run
             # it is by design due to val mode is used for early stop
 
             if self.args.lradj != "TST":
@@ -177,6 +179,7 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
 
         self.after_task(x_train, y_train)
 
+    # this with train_epoch are the tightly coupled with agent-specific
     @abstractmethod
     def train_epoch(self, dataloader, epoch):
         """
