@@ -38,6 +38,7 @@ if __name__ == "__main__":
             "FastICARL",
             "GCPPV1",
             "GCPPV2",
+            "G2P",
         ],
         help="Continual learning agent",
     )
@@ -179,15 +180,7 @@ if __name__ == "__main__":
     )
 
     # ######################## Methods-related params ###########################
-    # GCPP
-    parser.add_argument(
-        "--replay",
-        dest="replay",
-        type=boolean_string,
-        default=True,
-        choices=[False, True],
-        help="Use replay",
-    )
+    # GCPP; G2P;
     parser.add_argument(
         "--fmap",
         dest="fmap",
@@ -197,19 +190,35 @@ if __name__ == "__main__":
         help="Use feature map or raw feature for prototype classifier",
     )
     parser.add_argument(
-        "--kd",
-        dest="kd",
+        "--replay_g",
+        dest="replay_g",
         type=boolean_string,
         default=True,
         choices=[False, True],
-        help="Use KD",
+        help="Use replay for generator",
     )
     parser.add_argument(
-        "--lambda_kd",
-        dest="lambda_kd",
+        "--replay_l",
+        dest="replay_l",
+        type=boolean_string,
+        default=True,
+        choices=[False, True],
+        help="Use replay for learner",
+    )
+    parser.add_argument(
+        "--kd_l",
+        dest="kd_l",
+        type=boolean_string,
+        default=True,
+        choices=[False, True],
+        help="Use kd for learner",
+    )
+    parser.add_argument(
+        "--lambda_kd_l",
+        dest="lambda_kd_l",
         type=float,
         default=0.1,
-        help="lambda for KD loss func",
+        help="Hyperparam lambda for kd_l",
     )
 
     # Experience Replay
