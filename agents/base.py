@@ -529,5 +529,5 @@ class SequentialFineTune(BaseLearner):
             epoch_loss_train,
         ) = self.cross_entropy_epoch_run(
             dataloader=dataloader, epoch=epoch, mode="train"
-        )
+        )  # only here uses cross_entropy_epoch_run in train mode
         return epoch_loss_train, epoch_acc_train
