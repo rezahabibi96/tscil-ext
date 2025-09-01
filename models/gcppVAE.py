@@ -401,6 +401,7 @@ class GCPPVariationalAutoencoderConv(nn.Module):
         self.eval()
         x = self.sample(size, decoder_id)
 
+        # x is in shape of (size, C, L) if not fmap else (size, latent_dim)
         if self.fmap:
             x = self.encoder._get_fmap(x)
 
