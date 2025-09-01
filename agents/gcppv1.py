@@ -76,12 +76,11 @@ class GenerativeClassiferPlusPlusV1(BaseLearnerGCPP):
                     x = x.to(self.device)
                     x_ = None
 
-                    # generator's input should be (N, L, C)
                     rnt = 1 / (self.task_now + 1) if self.args.adaptive_weight else 0.5
                     generator_loss_dict = getattr(
                         self, "generator{}".format(id)
                     ).train_a_batch(
-                        x=x.transpose(1, 2),  # from (N, C, L) to (N, L, C)
+                        x=x.transpose(1, 2),
                         optimizer=optimizer_g,
                         x_=x_,
                         rnt=rnt,
@@ -133,13 +132,15 @@ class GenerativeClassiferPlusPlusV1(BaseLearnerGCPP):
                 "test": np.zeros((self.num_tasks, self.num_tasks)),
             }
 
-        prototypes = []  # list of prototypes with each shape (L, C)
+        prototypes = (
+            []
+        )  # list of prototypes with each shape (C, L) if not fmap else (latent_dim, )
         for id in self.learned_classes:
             prototype = getattr(self, "generator{}".format(id)).estimate_prototype(
                 size=100
             )
             prototypes.append(prototype)
-        # prototypes = torch.stack(prototypes, dim=0)  # (#prototypes, L, C)
+        # prototypes = torch.stack(prototypes, dim=0)  # (#prototypes, C, L) if not fmap else (#prototypes, latent_dim, )
 
         eval_modes = ["valid", "test"]  # 'valid' is for checking generalization.
         for mode in eval_modes:

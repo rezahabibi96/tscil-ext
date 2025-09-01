@@ -104,13 +104,14 @@ class GenerativeClassiferPlusPlusV2(BaseLearnerGCPP):
 
                     if epoch > self.warmup_step:
                         if self.replay and x_replay is not None:
-                            x_ = x_replay[torch.randperm(x_replay.size(0))]
-                            x_ = x_.to(self.device).transpose(1, 2)
+                            x_ = x_replay[torch.randperm(x_replay.size(0))].transpose(
+                                1, 2
+                            )
+                            x_ = x_.to(self.device)
 
-                    # generator's input should be (N, L, C)
                     rnt = 1 / (self.task_now + 1) if self.args.adaptive_weight else 0.5
                     generator_loss_dict = self.generator.train_a_batch(
-                        x=x.transpose(1, 2),  # from (N, C, L) to (N, L, C)
+                        x=x.transpose(1, 2),
                         optimizer=optimizer_g,
                         decoder_id=id,
                         x_=x_,
@@ -166,11 +167,13 @@ class GenerativeClassiferPlusPlusV2(BaseLearnerGCPP):
                 "test": np.zeros((self.num_tasks, self.num_tasks)),
             }
 
-        prototypes = []  # list of prototypes with each shape (L, C)
+        prototypes = (
+            []
+        )  # list of prototypes with each shape (C, L) if not fmap else (latent_dim, )
         for id in self.learned_classes:
             prototype = self.generator.estimate_prototype(size=100, decoder_id=id)
             prototypes.append(prototype)
-        # prototypes = torch.stack(prototypes, dim=0)  # (#prototypes, L, C)
+        # prototypes = torch.stack(prototypes, dim=0)  # (#prototypes, C, L) if not fmap else (#prototypes, latent_dim, )
 
         eval_modes = ["valid", "test"]  # 'valid' is for checking generalization.
         for mode in eval_modes:

@@ -378,9 +378,15 @@ class GCPPVariationalAutoencoderConv(nn.Module):
     # COMMENT REMOVED
     # CHECK THE ORIGIN REPO
 
+    # IMPORTANT COMMENT
+    # PLEASE NOTE
+
+    # x is in shape of (N, L, C) (from original raw data)
+    # x_ is in shape of (N, C, L) (from generative sample data)
+    # generator's input should be (N, C, L)
+    # model's input should be (N, L, C)
+
     def create_decoder(self, decoder_id):
-        # fix decoder creation overhead
-        # fix parameters optim creation
         decoder = VaeDecoder(
             self.seq_len,
             self.feat_dim,
@@ -398,26 +404,26 @@ class GCPPVariationalAutoencoderConv(nn.Module):
         if self.fmap:
             x = self.encoder._get_fmap(x)
 
-        prototype = torch.mean(x, dim=0)  # find alternative to mean
+        # proto is in shape of (C, L) if not fmap else (latent_dim, )
+        prototype = torch.mean(x, dim=0)
         return prototype
 
     @torch.no_grad()
     def estimate_distance(self, x, p):
         self.eval()
-        # x is (batch_size, L, C)
-        # p is from (L, C) to (1, L, C) <=> 1 is #prototypes
+        # x: (batch_size, C, L)
+        # p: from (C, L) to (1, C, L) if not fmap else from (latent_dim, ) to (1, latent_dim) <=> 1 is #prototypes
         p = p.unsqueeze(0)  # equivalent to p = torch.stack([p], dim=0)
 
         if self.fmap:
-            x = self.encoder._get_fmap(x)
+            x = self.encoder._get_fmap(x)  # (batch_size, latent_dim)
         else:
-            x = x.reshape(x.size(0), -1)  # (batch_size, L*C)
-            p = p.reshape(p.size(0), -1)  # (#prototypes, L*C)
+            x = x.reshape(x.size(0), -1)  # (batch_size, C*L)
+            p = p.reshape(p.size(0), -1)  # (#prototypes, C*L)
 
         x = F.normalize(x, p=2, dim=1)
         p = F.normalize(p, p=2, dim=1)
 
-        # dist = torch.cdist(x, p, p=2)  # find alternative to cdist
         similarity = torch.matmul(x, p.T)
         dist = 1 - similarity
         return dist
