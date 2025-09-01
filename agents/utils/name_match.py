@@ -16,6 +16,7 @@ from agents.er_sub import ER_on_Subject
 from agents.fast_icarl import FastICARL
 from agents.gcppv1 import GenerativeClassiferPlusPlusV1
 from agents.gcppv2 import GenerativeClassiferPlusPlusV2
+from agents.g2p import Generative2Prototype
 
 
 agents = {
@@ -37,6 +38,7 @@ agents = {
     "FastICARL": FastICARL,
     "GCPPV1": GenerativeClassiferPlusPlusV1,
     "GCPPV2": GenerativeClassiferPlusPlusV2,
+    "G2P": Generative2Prototype,
 }
 
 agents_replay = [
