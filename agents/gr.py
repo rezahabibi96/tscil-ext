@@ -101,18 +101,19 @@ class GenerativeReplay(BaseLearner):
         )
         for epoch in range(self.epochs_g):
             for batch_id, (x, y) in enumerate(train_dataloader):
-                x = x.to(self.device)
+                x = x.to(self.device)  # x is in shape of (N, L, C)
 
                 if self.task_now > 0:  # Replay after 1st task
-                    x_ = self.previous_generator.sample(self.batch_size)
+                    x_ = self.previous_generator.sample(
+                        self.batch_size
+                    )  # x_ is in shape of (N, C, L)
                 else:
                     x_ = None
 
-                # generator's input should be (N, L, C)
                 rnt = 1 / (self.task_now + 1) if self.args.adaptive_weight else 0.5
                 generator_loss_dict = self.generator.train_a_batch(
                     x=x.transpose(1, 2), optimizer=self.optimizer_g, x_=x_, rnt=rnt
-                )
+                )  # generator's input should be (N, C, L)
 
             train_mse_loss, train_kl_loss = self.generator.evaluate(train_dataloader)
             # Validate on val set for early stop
