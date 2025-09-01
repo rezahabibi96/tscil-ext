@@ -32,21 +32,34 @@ class BinaryCrossEntropy:
     def __init__(self, dim, device):
         self.dim = dim
         self.device = device
-        self.criterion = torch.nn.BCEWithLogitsLoss()
+        self.criterion = (
+            torch.nn.BCEWithLogitsLoss()
+        )  # it applies sigmoid to model_output only before bce loss layer
 
     def __call__(self, logits, labels):
+        # here uses ohv labels as target, commonly to treat multi-class as multi-label with 1 active label (icarl)
         targets = ohe_label(labels, dim=self.dim, device=self.device)
         loss = self.criterion(logits, targets)
         return loss
+
+
+# torch.nn.CrossEntropyLoss by default expects raw_logits and internally does log_softmax(raw_logits) then compute ce loss
+# it is why there is no torch.nn.CrossEntropyLossWithLogitsLoss
+
+# On the other hand, torch.nn.BCELoss by default expects sigmoid outputs
+# its counterpart, torch.nn.BCEWithLogitsLoss combines sigmoid + bce in a numerically stable way
 
 
 class BinaryCrossEntropywithLogits:
     def __init__(self, dim, device):
         self.dim = dim
         self.device = device
-        self.criterion = torch.nn.BCEWithLogitsLoss()
+        self.criterion = (
+            torch.nn.BCEWithLogitsLoss()
+        )  # it applies sigmoid to model_output only before bce loss layer
 
     def __call__(self, logits, target_logits):
+        # here uses logits (which have been converted to prob by sigmoid) as soft target, commonly for knowledge distillation (lwf)
         targets = torch.sigmoid(target_logits)
         loss = self.criterion(logits, targets)
         return loss
