@@ -182,36 +182,46 @@ if __name__ == "__main__":
     # ######################## Methods-related params ###########################
     # GCPP; G2P;
     parser.add_argument(
-        "--fmap",
-        dest="fmap",
-        type=boolean_string,
-        default=True,
-        choices=[False, True],
-        help="Use feature map or raw feature for prototype classifier",
+        "--classifier",
+        dest="classifier",
+        default="fmap",
+        choices=["fmap", "fraw"],
+        help="Use feature map or raw feature",
     )
     parser.add_argument(
         "--replay_g",
         dest="replay_g",
-        type=boolean_string,
-        default=True,
-        choices=[False, True],
+        default="raw",
+        choices=[None, "raw", "gen"],
         help="Use replay for generator",
     )
     parser.add_argument(
         "--replay_l",
         dest="replay_l",
-        type=boolean_string,
-        default=True,
-        choices=[False, True],
+        default=None,
+        choices=[None, "raw", "gen"],
         help="Use replay for learner",
+    )
+    parser.add_argument(
+        "--kd_g",
+        dest="kd_g",
+        default=True,
+        choices=[True, False],
+        help="Use kd for generator",
     )
     parser.add_argument(
         "--kd_l",
         dest="kd_l",
-        type=boolean_string,
-        default=True,
-        choices=[False, True],
+        default=False,
+        choices=[True, False],
         help="Use kd for learner",
+    )
+    parser.add_argument(
+        "--lambda_kd_g",
+        dest="lambda_kd_g",
+        type=float,
+        default=0.1,
+        help="Hyperparam lambda for kd_g",
     )
     parser.add_argument(
         "--lambda_kd_l",
@@ -219,6 +229,13 @@ if __name__ == "__main__":
         type=float,
         default=0.1,
         help="Hyperparam lambda for kd_l",
+    )
+    parser.add_argument(
+        "--temp",
+        dest="temp",
+        type=float,
+        default=0.07,
+        help="Temperature for sup con loss",
     )
 
     # Experience Replay
