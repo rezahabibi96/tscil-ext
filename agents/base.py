@@ -18,9 +18,72 @@ from utils.utils import EarlyStopping, BinaryCrossEntropy
 from torch.optim import lr_scheduler
 import copy
 from agents.utils.functions import compute_cls_feature_mean_buffer
+from utils.data import Dataloader_from_numpy, extract_samples_according_to_labels
+from agents.utils import g2p
 
 
 class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
+    """
+    This is the base class for the agent. The workflow is as follows:
+    agent.learn_task(data=[train, val]):
+        agent.before_task():
+            each epoch:
+                agent.train_epoch(data=train, mode='train')
+                agent.cross_entropy_epoch_run(data=val, mode='val')
+        agent.after_task()
+
+    agent.evaluate(data=[val, test])
+        if task is final:
+            agent.cross_entropy_epoch_run(data=val, mode='test')
+            agent.test_for_cf_matrix(data=test, mode='test')
+        else:
+            agent.cross_entropy_epoch_run(data=val, mode='test')
+            agent.cross_entropy_epoch_run(data=test, mode='test')
+    Notes:
+    - train_epoch(data=train, mode='train') never calls cross_entropy_epoch_run(data=train, mode='train').
+        It uses self.criterion, which is defined in before_task or in the agent-specific implementation.
+
+    - cross_entropy_epoch_run(data=val, mode='val') is used only for early stopping, since only its loss is considered (not accuracy).
+        In this mode, ncm_classifier is not checked. Even though this is intentional (accuracy is not needed)
+        This behavior is inconsistent because it always assumes the loss is applied to the final head.
+        As a result, this design does not support methods that do not rely on CE/BCE loss on the final head.
+        In other words, this design does not support methods that do not rely on model logits on the final head.
+
+    - cross_entropy_epoch_run(data=val, mode='test') is deliberately run with mode='test' (even though the data is validation data).
+        This ensures that ncm_classifier is checked, since accuracy is required for checking generalization.
+
+    - test_for_cf_matrix(data=test, mode='test') does not check ncm_classifier, even though cross_entropy_epoch_run does in test mode.
+        This inconsistency may be invalid for methods that solely use ncm_classifier
+
+    - Another inconsistency appears in evaluate: for tasks 0 to final-1, evaluation uses cross_entropy_epoch_run(test mode),
+        which does check ncm_classifier. However, for the final task, evaluation switches to test_for_cf_matrix,
+        which does not check ncm_classifier.
+
+    - Another inconsistency appears in test_for_cf_matrix: when computing predictions, `prediction` matches cross_entropy_epoch_run
+        and is used for accuracy calculation, but `predictions` is computed differently, used only for the confusion matrix,
+        and does not occur in cross_entropy_epoch_run.
+        Although self.criterion (CE/BCE) is used in cross_entropy_epoch_run,
+        torch.nn.CrossEntropyLoss() is always used in test_for_cf_matrix.
+
+    In summary, this codebase:
+    - Assumes methods use CE/BCE loss,
+    - Assumes training relies on the final head,
+    - Does not natively support methods that train without final head,
+    - Does not natively support methods that train without CE/BCE loss.
+
+    For agents that differ from this approach, do not forget to modify:
+    - before_task: to set self.criterion,
+    - cross_entropy_epoch_run: to define how self.criterion is applied,
+    - evaluate: to specify how evaluation is performed,
+    - test_for_cf_matrix: to define behavior on the final task (which may be unnecessary).
+
+    Comments added:
+    - agents/base.py on behavioral inconsistencies
+    - agents/gcppv1.py on shape-awareness of learner, generator, x, x_
+    - agents/gcppv2.py on shape-awareness of learner, generator, x, x_
+    - utils/utils.py on loss func choice consideration
+    """
+
     def __init__(self, model: nn.Module, args: argparse.Namespace):
         super(BaseLearner, self).__init__()
         self.model = model
@@ -43,10 +106,6 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
         self.use_kd = False
 
         # Only applicable for replay-based methods
-        # it is used in after_task (to compute mean feature) and cross_entropy_epoch_run (test mode)
-        # note tht ncm classifier is only run in test mode
-        # model classifier is still run in train mode (for learning feature repr used by ncm classifier in test mode)
-        # model classifier is still run in val mode (for earlystoping)
         self.ncm_classifier = False
 
         if not self.args.tune:
@@ -113,6 +172,8 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
             self.criterion = BinaryCrossEntropy(
                 dim=self.model.head.out_features, device=self.device
             )
+        elif self.args.agent == "G2P":
+            self.criterion = g2p.SupConLoss(self.args.temp)
         else:
             self.criterion = torch.nn.CrossEntropyLoss()
 
@@ -154,14 +215,12 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
             # Train for one epoch
             epoch_loss_train, epoch_acc_train = self.train_epoch(
                 train_dataloader, epoch=epoch
-            )  # train_epoch does not use any cross_entropy_epoch_run in any mode
-            # cross_entropy_epoch_run with train mode only used by SequentialFineTune
+            )
 
             # Test on val set for early stop
             epoch_loss_val, epoch_acc_val = self.cross_entropy_epoch_run(
                 val_dataloader, mode="val"
-            )  # val mode is on purpose so tht ncm_classifier & torch_grad will not be used in cross_entropy_epoch_run
-            # it is by design due to val mode is used for early stop
+            )
 
             if self.args.lradj != "TST":
                 adjust_learning_rate(
@@ -226,18 +285,21 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
                 step_loss.backward()
                 self.optimizer_step(epoch)
 
-            else:
+            elif mode in ["val", "test"]:
                 with torch.no_grad():
-                    outputs = self.model(x)
-                    step_loss = self.criterion(outputs, y)
+                    if self.args.agent == "G2P":
+                        pass
+                    else:
+                        outputs = self.model(x)
+                        step_loss = self.criterion(outputs, y)
 
-                    if self.ncm_classifier and mode == "test":
-                        features = self.model.feature(x)
-                        distance = torch.cdist(
-                            F.normalize(features, p=2, dim=1),
-                            F.normalize(self.means_of_exemplars, p=2, dim=1),
-                        )
-                        outputs = -distance  # select the class with min distance
+                        if mode == "test" and self.ncm_classifier:
+                            features = self.model.feature(x)
+                            distance = torch.cdist(
+                                F.normalize(features, p=2, dim=1),
+                                F.normalize(self.means_of_exemplars, p=2, dim=1),
+                            )
+                            outputs = -distance  # select class with min distance
 
             epoch_loss += step_loss
 
@@ -287,12 +349,14 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
                 x, y = x.to(self.device), y.to(self.device)
                 self.buffer.update(x, y)
 
-        # Compute means of classes if using ncm classifier
+        # Compute means of classes if using ncm_classifier
         if self.ncm_classifier:
+            # agents use ncm_classifier are icarl and only icarl
             self.means_of_exemplars = compute_cls_feature_mean_buffer(
                 self.buffer, self.model
             )
 
+        # Save the teacher model if using kd
         if self.use_kd:
             # agents use kd are lwf and dt2w
             self.teacher = copy.deepcopy(self.model)  # eval() mode
@@ -338,18 +402,21 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
                     x_eval, y_eval, self.batch_size, shuffle=False
                 )
 
-                if (
-                    self.cf_matrix
-                    and self.task_now + 1 == self.num_tasks
-                    and mode == "test"
-                ):  # Collect results for CM
-                    # run test_for_cf_matrix after learning all task
-                    eval_loss_i, eval_acc_i = self.test_for_cf_matrix(eval_dataloader_i)
+                if self.args.agent == "G2P":
+                    pass
                 else:
-                    # run cross_entropy_epoch_run after learning each task (except the last task)
-                    eval_loss_i, eval_acc_i = self.cross_entropy_epoch_run(
-                        eval_dataloader_i, mode="test"
-                    )  # the hard coded mode is probably on purpose so tht the ncm_classifier will be checked
+                    if (
+                        self.cf_matrix
+                        and self.task_now + 1 == self.num_tasks
+                        and mode == "test"
+                    ):  # Collect results for CM
+                        eval_loss_i, eval_acc_i = self.test_for_cf_matrix(
+                            eval_dataloader_i
+                        )
+                    else:
+                        eval_loss_i, eval_acc_i = self.cross_entropy_epoch_run(
+                            eval_dataloader_i, mode="test"
+                        )
 
                 if self.verbose:
                     print(
@@ -372,6 +439,11 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
                             eval_mse_loss, eval_kl_loss
                         )
                     )
+
+                # only learner is evaluated, evaluating generator of gcpp &/ g2p (e.g., gr in base.py) is infeasible
+                # since decoder is disentangled, so we must iterate over each decoder for all classes in (x_eval, y_eval)
+                # however, note that the generator can be evaluated in learn_task() using train and validation data
+                # it is simply not feasible to evaluate it in evaluate(), even with validation or test data
 
             # Print accuracy matrix of the tasks on this run
             if self.task_now + 1 == self.num_tasks and self.verbose:
@@ -407,8 +479,7 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
         total = 0
         correct = 0
         epoch_loss = 0
-        ce_loss = torch.nn.CrossEntropyLoss()  # on purpose
-        # in cross_entropy_epoch_run using self.criterion (which can be either CE or BCE)
+        ce_loss = torch.nn.CrossEntropyLoss()
 
         self.model.eval()
         for batch_id, (x, y) in enumerate(dataloader):
@@ -419,26 +490,25 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
                 y.unsqueeze()
 
             with torch.no_grad():
-                outputs = self.model(x)
-                step_loss = ce_loss(outputs, y)
+                if self.args.agent == "G2P":
+                    pass
+                else:
+                    outputs = self.model(x)
+                    step_loss = ce_loss(outputs, y)
 
-                # why no 'if self.ncm_classifier and mode == "test":' such in cross_entropy_epoch_run
+                    # using torch.exp assumes outputs are log-probabilities, however, the model outputs are raw logits
+                    # torch.argmax(outputs, dim=1) is sufficient for class prediction
+                    predictions = (
+                        (torch.max(torch.exp(outputs), 1)[1]).data.cpu().numpy()
+                    )
+                    labels = y.data.cpu().numpy()
 
-                predictions = (
-                    (torch.max(torch.exp(outputs), 1)[1]).data.cpu().numpy()
-                )  # 1 why compute pred with diff formula than (2)
-                labels = y.data.cpu().numpy()
-
-                # using max & exp means tht it assumes the outputs is log prob from log softmax calculation
-
-                self.y_pred_cf.extend(predictions)  # Save Prediction
-                self.y_true_cf.extend(labels)  # Save Truth
+                    self.y_pred_cf.extend(predictions)  # Save Prediction
+                    self.y_true_cf.extend(labels)  # Save Truth
 
             epoch_loss += step_loss
 
-            prediction = torch.argmax(
-                outputs, dim=1
-            )  # 2 why compute pred with diff formula than (1)
+            prediction = torch.argmax(outputs, dim=1)
             correct += prediction.eq(y).sum().item()
 
         epoch_acc = 100.0 * (correct / total)
@@ -450,25 +520,35 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
         plot_confusion_matrix(self.y_true_cf, self.y_pred_cf, classes, path)
 
     @torch.no_grad()
-    def feature_space_tsne_visualization(self, task_stream, path, view_generator=False):
+    def feature_space_tsne_visualization(
+        self, task_stream, path, view_generator=False, shared_encoder=True
+    ):
         """featured in evaluate func"""
+        z = None
+        x_all, y_all = None, None
         for i in range(self.task_now + 1):
-            if i == 0:
-                _, _, (x_all, y_all) = task_stream.tasks[
-                    i
-                ]  # Test data for visualization
-            else:
-                _, _, (x_i, y_i) = task_stream.tasks[i]
+            _, _, (x_i, y_i) = task_stream.tasks[i]
 
-                x_all, y_all = np.concatenate((x_all, x_i)), np.concatenate(
-                    (y_all, y_i)
-                )
+            if x_all is None:
+                x_all, y_all = x_i, y_i
+            else:
+                x_all = np.concatenate((x_all, x_i))
+                y_all = np.concatenate((y_all, y_i))
+
+            if view_generator and not shared_encoder:
+                for id in list(set(y_i.tolist())):
+                    (x_id, y_id) = extract_samples_according_to_labels(x_i, y_i, [id])
+                    generator = getattr(self, "generator{}".format(id))
+                    x_id = torch.Tensor(x_id).to(self.device)
+                    _, _, z_id = generator.encoder(x_id.transpose(1, 2))
+                    z = torch.cat((z, z_id), dim=0) if z is not None else z_id
 
         # Save the nparrays of features
         x_all = torch.Tensor(x_all).to(self.device)
 
         if view_generator:
-            z_mean, z_log_var, z = self.generator.encoder(x_all.transpose(1, 2))
+            if shared_encoder:
+                z_mean, z_log_var, z = self.generator.encoder(x_all.transpose(1, 2))
             features = z.cpu().detach().numpy()
         else:
             features = self.model.feature(x_all).cpu().detach().numpy()
