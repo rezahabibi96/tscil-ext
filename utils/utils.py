@@ -49,6 +49,12 @@ class BinaryCrossEntropy:
 # On the other hand, torch.nn.BCELoss by default expects sigmoid outputs
 # its counterpart, torch.nn.BCEWithLogitsLoss combines sigmoid + bce in a numerically stable way
 
+# default criterion is ce loss (most)
+# alternative criterion is bce loss (icarl)
+
+# if ce loss is used alongside kd, log_softmax is used as target kd (dt2w)
+# if bce loss is used alongside kd, bce_with_logits is used as target kd (lwf)
+
 
 class BinaryCrossEntropywithLogits:
     def __init__(self, dim, device):
