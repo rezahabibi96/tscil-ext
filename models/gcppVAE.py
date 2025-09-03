@@ -169,19 +169,19 @@ class GCPPVariationalAutoencoderConv(nn.Module):
         latent_dim,
         hidden_layer_sizes,
         device,
-        fmap,
-        kd,
-        lambda_kd=0.1,
         recon_wt=3.0,
+        classifier="fmap",
+        kd_g=True,
+        lambda_kd_g=0.1,
     ):
         super().__init__()
         self.seq_len = seq_len
         self.feat_dim = feat_dim
         self.latent_dim = latent_dim
         self.hidden_layer_sizes = hidden_layer_sizes
-        self.fmap = fmap
-        self.kd = kd
-        self.lambda_kd = lambda_kd
+        self.classifier = classifier
+        self.kd = kd_g
+        self.lambda_kd = lambda_kd_g
         self.recon_wt = recon_wt
 
         self.total_loss_tracker = AverageMeter()
@@ -402,7 +402,7 @@ class GCPPVariationalAutoencoderConv(nn.Module):
         x = self.sample(size, decoder_id)
 
         # x is in shape of (size, C, L) if not fmap else (size, latent_dim)
-        if self.fmap:
+        if self.classifier == "fmap":
             x = self.encoder._get_fmap(x)
 
         # proto is in shape of (C, L) if not fmap else (latent_dim, )
@@ -416,7 +416,7 @@ class GCPPVariationalAutoencoderConv(nn.Module):
         # p: from (C, L) to (1, C, L) if not fmap else from (latent_dim, ) to (1, latent_dim) <=> 1 is #prototypes
         p = p.unsqueeze(0)  # equivalent to p = torch.stack([p], dim=0)
 
-        if self.fmap:
+        if self.classifier == "fmap":
             x = self.encoder._get_fmap(x)  # (batch_size, latent_dim)
         else:
             x = x.reshape(x.size(0), -1)  # (batch_size, C*L)

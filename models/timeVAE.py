@@ -155,15 +155,15 @@ class VariationalAutoencoderConv(nn.Module):
         latent_dim,
         hidden_layer_sizes,
         device,
-        fmap,
         recon_wt=3.0,
+        clssifier="fmap",
     ):
         super().__init__()
         self.seq_len = seq_len
         self.feat_dim = feat_dim
         self.latent_dim = latent_dim
         self.hidden_layer_sizes = hidden_layer_sizes
-        self.fmap = fmap
+        self.classifier = clssifier
         self.recon_wt = recon_wt
 
         self.total_loss_tracker = AverageMeter()
@@ -328,7 +328,7 @@ class VariationalAutoencoderConv(nn.Module):
         x = self.sample(size)
 
         # x is in shape of (size, C, L) if not fmap else (size, latent_dim)
-        if self.fmap:
+        if self.classifier:
             x = self.encoder._get_fmap(x)
 
         # proto is in shape of (C, L) if not fmap else (latent_dim, )
@@ -342,7 +342,7 @@ class VariationalAutoencoderConv(nn.Module):
         # p: from (C, L) to (1, C, L) if not fmap else from (latent_dim, ) to (1, latent_dim) <=> 1 is #prototypes
         p = p.unsqueeze(0)  # equivalent to p = torch.stack([p], dim=0)
 
-        if self.fmap:
+        if self.classifier:
             x = self.encoder._get_fmap(x)  # (batch_size, latent_dim)
         else:
             x = x.reshape(x.size(0), -1)  # (batch_size, C*L)
