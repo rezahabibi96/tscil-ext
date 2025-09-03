@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 from abc import abstractmethod
 from sklearn.manifold import TSNE
 from utils.metrics import plot_confusion_matrix
+from utils.data import Dataloader_from_numpy, extract_samples_according_to_labels
 
 
 class BaseLearnerGCPP(nn.Module, metaclass=abc.ABCMeta):
@@ -29,10 +30,6 @@ class BaseLearnerGCPP(nn.Module, metaclass=abc.ABCMeta):
 
         self.buffer = None
         self.er_mode = args.er_mode
-        self.teacher = None
-        self.use_kd = False
-
-        self.ncm_classifier = False
 
         if not self.args.tune:
             self.ckpt_path = args.exp_path + "/ckpt_r{}.pt".format(self.run_id)
@@ -75,9 +72,9 @@ class BaseLearnerGCPP(nn.Module, metaclass=abc.ABCMeta):
             )
             print("\n--> Class: {}".format(self.classes_in_task))
 
-    @abstractmethod
     def learn_task(self, task):
-        raise NotImplementedError
+        (x_train, y_train), (x_val, y_val), _ = task
+        self.before_task(y_train)
 
     # def train_epoch(self, dataloader, epoch):
     #     pass
@@ -92,14 +89,17 @@ class BaseLearnerGCPP(nn.Module, metaclass=abc.ABCMeta):
     #     pass
 
     def after_task(self, x_train, y_train):
-        self.learned_classes += self.classes_in_task
+        print(f"Classes learned just now: {self.classes_in_task}")
+        print(f"Classes learned so far: {self.learned_classes}")
 
     @abstractmethod
     def evaluate(self, task_stream, path=None):
         raise NotImplementedError
 
-    # def test_for_cf_matrix(self, dataloader):
-    #     pass
+    @torch.no_grad()
+    def test_for_cf_matrix(self, dataloader, y_pred, y_true):
+        self.y_pred_cf.extend(y_pred)
+        self.y_true_cf.extend(y_true)
 
     def plot_cf_matrix(self, path, classes):
         plot_confusion_matrix(self.y_true_cf, self.y_pred_cf, classes, path)
@@ -109,29 +109,32 @@ class BaseLearnerGCPP(nn.Module, metaclass=abc.ABCMeta):
         self, task_stream, path, view_generator=True, shared_encoder=True
     ):
         """featured in evaluate func"""
+        z = None
+        x_all, y_all = None, None
         for i in range(self.task_now + 1):
-            if i == 0:
-                _, _, (x_all, y_all) = task_stream.tasks[
-                    i
-                ]  # Test data for visualization
-            else:
-                _, _, (x_i, y_i) = task_stream.tasks[i]
+            _, _, (x_i, y_i) = task_stream.tasks[i]
 
-                x_all, y_all = np.concatenate((x_all, x_i)), np.concatenate(
-                    (y_all, y_i)
-                )
+            if x_all is None:
+                x_all, y_all = x_i, y_i
+            else:
+                x_all = np.concatenate((x_all, x_i))
+                y_all = np.concatenate((y_all, y_i))
+
+            if not shared_encoder:
+                for id in list(set(y_i.tolist())):
+                    (x_id, y_id) = extract_samples_according_to_labels(x_i, y_i, [id])
+                    generator = getattr(self, "generator{}".format(id))
+                    x_id = torch.Tensor(x_id).to(self.device)
+                    _, _, z_id = generator.encoder(x_id.transpose(1, 2))
+                    z = torch.cat((z, z_id), dim=0) if z is not None else z_id
 
         # Save the nparrays of features
         x_all = torch.Tensor(x_all).to(self.device)
 
-        # TODO
-        # self.generators
         if shared_encoder:
-            # gcppv2
             z_mean, z_log_var, z = self.generator.encoder(x_all.transpose(1, 2))
-        else:
-            # TODO
-            pass  # ggcpv1
+
+        # detach numpy
         features = z.cpu().detach().numpy()
 
         np.save(path + "f", features)
