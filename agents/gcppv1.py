@@ -11,7 +11,7 @@ from utils.utils import EarlyStopping
 
 class GenerativeClassiferPlusPlusV1(BaseLearnerGCPP):
     """
-    data-free prototype-based generative classifier with latent distillation
+    data-free prototype-based generative classifier incremental learning
     """
 
     def __init__(self, args):
@@ -36,8 +36,8 @@ class GenerativeClassiferPlusPlusV1(BaseLearnerGCPP):
                 latent_dim=self.args.feature_dim,  # 2 for visualization
                 hidden_layer_sizes=[64, 128, 256, 512],  # [128, 256]
                 device=self.device,
-                fmap=self.args.fmap,
                 recon_wt=self.args.recon_wt,
+                classifier=self.args.classifier,
             )
             setattr(self, "generator{}".format(id), generator)
 
@@ -93,6 +93,7 @@ class GenerativeClassiferPlusPlusV1(BaseLearnerGCPP):
                 val_mse_loss, val_kl_loss = getattr(
                     self, "generator{}".format(id)
                 ).evaluate(val_dataloader)
+                # check comment on evaluate generator
 
                 if self.verbose:
                     print(
@@ -111,18 +112,11 @@ class GenerativeClassiferPlusPlusV1(BaseLearnerGCPP):
                         print("Early stopping")
                     break
 
-            # from after_task
+            # self.after_task for generator
             self.learned_classes += [id]
-            self.generator.copy_encoder()
+            # self.generator.copy_encoder()
 
-        # do none
-        self.after_task(None, None)
-
-    # override method
-    def after_task(self, x_train, y_train):
-        # self.learned_classes += self.classes_in_task # move to after train per class
-        # self.generator.copy_encoder() # move to after train per class
-        pass
+        # self.after_task(x_train, y_train) # for learner
 
     def evaluate(self, task_stream, path=None):
         if self.task_now == 0:
@@ -180,14 +174,16 @@ class GenerativeClassiferPlusPlusV1(BaseLearnerGCPP):
                     preds = torch.argmin(dists, dim=1)
                     correct += preds.eq(y).sum().item()
 
-                    # cf matrix
                     if (
                         self.cf_matrix
                         and self.task_now + 1 == self.num_tasks
                         and mode == "test"
                     ):
-                        self.y_pred_cf.extend(preds.data.cpu().numpy())
-                        self.y_true_cf.extend(y.data.cpu().numpy())
+                        self.test_for_cf_matrix(
+                            eval_dataloader_i,
+                            preds.data.cpu().numpy(),
+                            y.data.cpu().numpy(),
+                        )
                 eval_acc_i = 100.0 * (correct / total)
 
                 if self.verbose:
@@ -197,7 +193,16 @@ class GenerativeClassiferPlusPlusV1(BaseLearnerGCPP):
                     eval_acc_i, decimals=2
                 )
 
+                # only learner is evaluated, evaluating generator of gcpp &/ g2p (e.g., gr in base.py) is infeasible
+                # since decoder is disentangled, so we must iterate over each decoder for all classes in (x_eval, y_eval)
+                # however, note that the generator can be evaluated in learn_task() using train and validation data
+                # it is simply not feasible to evaluate it in evaluate(), even with validation or test data
+
             if self.task_now + 1 == self.num_tasks and self.verbose:
                 with np.printoptions(suppress=True):  # Avoid Scientific Notation
                     print("Accuracy matrix of all tasks:")
                     print(self.Acc_tasks[mode])
+
+    def after_task(self, x_train, y_train):
+        # TODO ProtoCalc
+        pass

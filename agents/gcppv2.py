@@ -12,7 +12,7 @@ import time
 
 class GenerativeClassiferPlusPlusV2(BaseLearnerGCPP):
     """
-    data-free prototype-based generative classifier with latent distillation
+    data-free prototype-based generative classifier incremental learning
     """
 
     def __init__(self, args):
@@ -29,16 +29,16 @@ class GenerativeClassiferPlusPlusV2(BaseLearnerGCPP):
             latent_dim=self.args.feature_dim,  # 2 for visualization
             hidden_layer_sizes=[64, 128, 256, 512],  # [128, 256]
             device=self.device,
-            fmap=self.args.fmap,
-            kd=self.args.kd,
-            lambda_kd=self.args.lambda_kd,
             recon_wt=self.args.recon_wt,
+            classifier=self.args.classifier,
+            kd_g=self.args.kd_g,
+            lambda_kd_g=self.args.lambda_kd_g,
         )
 
         self.buffer = {}
         self.warmup_step = 50
         self.max_mem_per_class = 100
-        self.replay = self.args.replay
+        self.replay = self.args.replay_g
 
     def learn_task(self, task):
         (x_train, y_train), (x_val, y_val), _ = task
@@ -86,6 +86,7 @@ class GenerativeClassiferPlusPlusV2(BaseLearnerGCPP):
             for epoch in range(epochs_g):
                 x_replay = None
 
+                # TODO buffer
                 if self.replay:
                     for cl_id in self.learned_classes:
                         if cl_id != id and cl_id in self.buffer:
@@ -123,6 +124,7 @@ class GenerativeClassiferPlusPlusV2(BaseLearnerGCPP):
                 )
                 # Validate on val set for early stop
                 val_mse_loss, val_kl_loss = self.generator.evaluate(val_dataloader, id)
+                # check comment on evaluate generator
 
                 if self.verbose:
                     print(
@@ -141,23 +143,16 @@ class GenerativeClassiferPlusPlusV2(BaseLearnerGCPP):
                         print("Early stopping")
                     break
 
-            # store replay
+            # TODO buffer
             if self.replay and self.max_mem_per_class != 0:
                 n_replay = min(self.max_mem_per_class, len(x_train_id))
                 self.buffer[id] = torch.Tensor(x_train_id[:n_replay]).to(self.device)
 
-            # from after_task
+            # self.after_task for generator
             self.learned_classes += [id]
             self.generator.copy_encoder()
 
-        # do none
-        self.after_task(None, None)
-
-    # override method
-    def after_task(self, x_train, y_train):
-        # self.learned_classes += self.classes_in_task # move to after train per class
-        # self.generator.copy_encoder() # move to after train per class
-        pass
+        # self.after_task(x_train, y_train) # for learner
 
     def evaluate(self, task_stream, path=None):
         if self.task_now == 0:
@@ -211,14 +206,16 @@ class GenerativeClassiferPlusPlusV2(BaseLearnerGCPP):
                     preds = torch.argmin(dists, dim=1)
                     correct += preds.eq(y).sum().item()
 
-                    # cf matrix
                     if (
                         self.cf_matrix
                         and self.task_now + 1 == self.num_tasks
                         and mode == "test"
                     ):
-                        self.y_pred_cf.extend(preds.data.cpu().numpy())
-                        self.y_true_cf.extend(y.data.cpu().numpy())
+                        self.test_for_cf_matrix(
+                            eval_dataloader_i,
+                            preds.data.cpu().numpy(),
+                            y.data.cpu().numpy(),
+                        )
                 eval_acc_i = 100.0 * (correct / total)
 
                 if self.verbose:
@@ -228,7 +225,16 @@ class GenerativeClassiferPlusPlusV2(BaseLearnerGCPP):
                     eval_acc_i, decimals=2
                 )
 
+                # only learner is evaluated, evaluating generator of gcpp &/ g2p (e.g., gr in base.py) is infeasible
+                # since decoder is disentangled, so we must iterate over each decoder for all classes in (x_eval, y_eval)
+                # however, note that the generator can be evaluated in learn_task() using train and validation data
+                # it is simply not feasible to evaluate it in evaluate(), even with validation or test data
+
             if self.task_now + 1 == self.num_tasks and self.verbose:
                 with np.printoptions(suppress=True):  # Avoid Scientific Notation
                     print("Accuracy matrix of all tasks:")
                     print(self.Acc_tasks[mode])
+
+    def after_task(self, x_train, y_train):
+        # TODO ProtoCalc
+        pass
