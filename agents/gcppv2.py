@@ -7,7 +7,7 @@ from utils.setup_elements import input_size_match
 from utils.data import Dataloader_from_numpy, extract_samples_according_to_labels
 from models.gcppVAE import GCPPVariationalAutoencoderConv
 from utils.utils import EarlyStopping
-import time
+from agents.utils import gcpp
 
 
 class GenerativeClassiferPlusPlusV2(BaseLearnerGCPP):
@@ -35,10 +35,11 @@ class GenerativeClassiferPlusPlusV2(BaseLearnerGCPP):
             lambda_kd_g=self.args.lambda_kd_g,
         )
 
-        self.buffer = {}
-        self.warmup_step = 50
+        self.buffer = dict()
+        self.er_mode = args.er_mode
+
+        self.warmup_epochs = 50
         self.max_mem_per_class = 100
-        self.replay = self.args.replay_g
 
     def learn_task(self, task):
         (x_train, y_train), (x_val, y_val), _ = task
@@ -84,30 +85,20 @@ class GenerativeClassiferPlusPlusV2(BaseLearnerGCPP):
             )
 
             for epoch in range(epochs_g):
-                x_replay = None
+                x_buff = None
 
-                # TODO buffer
-                if self.replay:
-                    for cl_id in self.learned_classes:
-                        if cl_id != id and cl_id in self.buffer:
-                            rand_idxs = torch.randperm(self.buffer[cl_id].size(0))[
-                                : self.batch_size // len(self.learned_classes)
-                            ]
-                            x_replay_id = self.buffer[cl_id][rand_idxs]
-                            if x_replay is not None:
-                                x_replay = torch.cat([x_replay, x_replay_id], dim=0)
-                            else:
-                                x_replay = x_replay_id
+                if self.args.replay_g == "raw" and self.buffer is not None:
+                    x_buff = gcpp.retrieve_buffer(
+                        self.buffer, self.batch_size, self.learned_classes, id
+                    )
 
                 for batch_id, (x, y) in enumerate(train_dataloader):
                     x = x.to(self.device)
                     x_ = None
 
-                    if epoch > self.warmup_step:
-                        if self.replay and x_replay is not None:
-                            x_ = x_replay[torch.randperm(x_replay.size(0))].transpose(
-                                1, 2
-                            )
+                    if epoch > self.warmup_epochs:
+                        if self.args.replay_g == "raw" and x_buff is not None:
+                            x_ = x_buff[torch.randperm(x_buff.size(0))].transpose(1, 2)
                             x_ = x_.to(self.device)
 
                     rnt = 1 / (self.task_now + 1) if self.args.adaptive_weight else 0.5
@@ -143,10 +134,10 @@ class GenerativeClassiferPlusPlusV2(BaseLearnerGCPP):
                         print("Early stopping")
                     break
 
-            # TODO buffer
-            if self.replay and self.max_mem_per_class != 0:
-                n_replay = min(self.max_mem_per_class, len(x_train_id))
-                self.buffer[id] = torch.Tensor(x_train_id[:n_replay]).to(self.device)
+            if self.args.replay_g == "raw" and self.max_mem_per_class != 0:
+                self.buffer = gcpp.update_buffer(
+                    self.buffer, id, x_train_id, self.max_mem_per_class
+                )
 
             # self.after_task for generator
             self.learned_classes += [id]
@@ -236,5 +227,6 @@ class GenerativeClassiferPlusPlusV2(BaseLearnerGCPP):
                     print(self.Acc_tasks[mode])
 
     def after_task(self, x_train, y_train):
-        # TODO ProtoCalc
+        # TODO
+        # buffer matter and or proto matter
         pass
