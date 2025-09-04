@@ -76,7 +76,7 @@ class VaeEncoder(nn.Module):
         z = Sampling()(z_mean, z_log_var)
         return z_mean, z_log_var, z
 
-    def _get_fmap(self, x):
+    def feature(self, x):
         hx = self.encoder_conv(x)
         hx = Flatten()(hx)
         z_mean = self.encoder_fc1(hx)
@@ -329,7 +329,7 @@ class VariationalAutoencoderConv(nn.Module):
 
         # x is in shape of (size, C, L) if not fmap else (size, latent_dim)
         if self.classifier:
-            x = self.encoder._get_fmap(x)
+            x = self.encoder.feature(x)
 
         # proto is in shape of (C, L) if not fmap else (latent_dim, )
         prototype = torch.mean(x, dim=0)
@@ -343,7 +343,7 @@ class VariationalAutoencoderConv(nn.Module):
         p = p.unsqueeze(0)  # equivalent to p = torch.stack([p], dim=0)
 
         if self.classifier:
-            x = self.encoder._get_fmap(x)  # (batch_size, latent_dim)
+            x = self.encoder.feature(x)  # (batch_size, latent_dim)
         else:
             x = x.reshape(x.size(0), -1)  # (batch_size, C*L)
             p = p.reshape(p.size(0), -1)  # (#prototypes, C*L)

@@ -76,24 +76,24 @@ class VaeEncoder(nn.Module):
         z_mean = self.encoder_fc1(hx)
         z_log_var = self.encoder_fc2(hx)
         # ==================== DIAGNOSIS ====================
-        # comment if not using kd and rd
+        # comment if not using kd and or replay
         z_mean = torch.clamp(z_mean, min=-5.0, max=5.0)
         z_log_var = torch.clamp(z_log_var, min=-5.0, max=5.0)
-        # comment if not using kd and rd
+        # comment if not using kd and replay
         # ==================== DIAGNOSIS ====================
         z = Sampling()(z_mean, z_log_var)
         return z_mean, z_log_var, z
 
-    def _get_fmap(self, x):
+    def feature(self, x):
         hx = self.encoder_conv(x)
         hx = Flatten()(hx)
         z_mean = self.encoder_fc1(hx)
         z_log_var = self.encoder_fc2(hx)
         # ==================== DIAGNOSIS ====================
-        # comment if not using kd and rd
+        # comment if not using kd and replay
         z_mean = torch.clamp(z_mean, min=-10, max=10)
         z_log_var = torch.clamp(z_log_var, min=-10, max=10)
-        # comment if not using kd and rd
+        # comment if not using kd and replay
         # ==================== DIAGNOSIS ====================
         return z_mean
         # z = Sampling()(z_mean, z_log_var)
@@ -211,12 +211,9 @@ class GCPPVariationalAutoencoderConv(nn.Module):
         x_decoded = self.decoders[str(decoder_id)](z)
         return x_decoded
 
-    def copy_encoder(self):
-        self.encoder_teacher = copy.deepcopy(self.encoder)
-
     def _get_kd_loss(self, x):
-        z_teacher = self.encoder_teacher._get_fmap(x)
-        z_student = self.encoder._get_fmap(x)
+        z_teacher = self.encoder_teacher.feature(x)
+        z_student = self.encoder.feature(x)
 
         z_teacher_norm = F.normalize(z_teacher, p=2, dim=1)  # (batch_size, latent_dim)
         z_student_norm = F.normalize(z_student, p=2, dim=1)  # (batch_size, latent_dim)
@@ -396,6 +393,9 @@ class GCPPVariationalAutoencoderConv(nn.Module):
         ).to(self.device)
         self.decoders[str(decoder_id)] = decoder
 
+    def copy_encoder(self):
+        self.encoder_teacher = copy.deepcopy(self.encoder)
+
     @torch.no_grad()
     def estimate_prototype(self, size, decoder_id):
         self.eval()
@@ -403,7 +403,7 @@ class GCPPVariationalAutoencoderConv(nn.Module):
 
         # x is in shape of (size, C, L) if not fmap else (size, latent_dim)
         if self.classifier == "fmap":
-            x = self.encoder._get_fmap(x)
+            x = self.encoder.feature(x)
 
         # proto is in shape of (C, L) if not fmap else (latent_dim, )
         prototype = torch.mean(x, dim=0)
@@ -417,7 +417,7 @@ class GCPPVariationalAutoencoderConv(nn.Module):
         p = p.unsqueeze(0)  # equivalent to p = torch.stack([p], dim=0)
 
         if self.classifier == "fmap":
-            x = self.encoder._get_fmap(x)  # (batch_size, latent_dim)
+            x = self.encoder.feature(x)  # (batch_size, latent_dim)
         else:
             x = x.reshape(x.size(0), -1)  # (batch_size, C*L)
             p = p.reshape(p.size(0), -1)  # (#prototypes, C*L)
