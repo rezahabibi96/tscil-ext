@@ -204,5 +204,6 @@ class GenerativeClassiferPlusPlusV1(BaseLearnerGCPP):
                     print(self.Acc_tasks[mode])
 
     def after_task(self, x_train, y_train):
-        # TODO ProtoCalc
+        # TODO
+        # buffer and proto related matters
         pass
