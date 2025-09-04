@@ -392,6 +392,7 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
                     else task_stream.tasks[i][2]
                 )
 
+                # Use eval data to evaluate learner
                 eval_dataloader_i = Dataloader_from_numpy(
                     x_eval, y_eval, self.batch_size, shuffle=False
                 )
@@ -418,7 +419,7 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
                     eval_acc_i, decimals=2
                 )
 
-                # Use test data to evaluate generator
+                # Use eval data to evaluate generator
                 if self.args.agent == "GR" and self.verbose:
                     eval_mse_loss, eval_kl_loss = self.generator.evaluate(
                         eval_dataloader_i
@@ -429,10 +430,27 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
                         )
                     )
 
-                # only learner is evaluated, evaluating generator of gcpp &/ g2p (e.g., gr in base.py) is infeasible
-                # since decoder is disentangled, so we must iterate over each decoder for all classes in (x_eval, y_eval)
-                # however, note that the generator can be evaluated in learn_task() using train and validation data
-                # it is simply not feasible to evaluate it in evaluate(), even with validation or test data
+            """
+            In base.py extended agents: 
+                during training, the learner is checked for its loss and accuracy (train and val), 
+                    while the generator (acts as a generator) is checked for its loss only (train and val). 
+                during evaluation, the learner is checked for its loss and accuracy (val and test), 
+                    while the generator (acts as a generator) is checked for its loss only (val and test).
+
+            In base_gcpp.py extended agents: 
+                during training, there is no actual learner, 
+                    while the generator (acts as a generator) is checked for its loss only (train and val). 
+                during evaluation, there is no actual learner, 
+                    while the generator (acts as a pseudo-learner) is checked for its accuracy only (val and test)
+                    and cheking for its loss, although possible, is complex due to the disentangled decoder.
+
+            In base_mv.py extended agents: 
+                during training, the learner is checked for its loss only (train and val), 
+                    while the generator (acts as a generator) is checked for its loss only (train and val). 
+                during evaluation, the learner is checked for its accuracy and loss (val and test), 
+                    while the generator (acts as a generator) is not checked at all due to the disentangled decoder
+                    and cheking for its loss, although possible, is complex due to the disentangled decoder.
+            """
 
             # Print accuracy matrix of the tasks on this run
             if self.task_now + 1 == self.num_tasks and self.verbose:
@@ -505,7 +523,7 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
 
     @torch.no_grad()
     def feature_space_tsne_visualization(
-        self, task_stream, path, view_generator=False, shared_encoder=True
+        self, task_stream, path, view_generator=False, shared_encoder=False
     ):
         """featured in evaluate func"""
         z = None
