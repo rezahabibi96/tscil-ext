@@ -205,5 +205,5 @@ class GenerativeClassiferPlusPlusV1(BaseLearnerGCPP):
 
     def after_task(self, x_train, y_train):
         # TODO
-        # buffer and proto related matters
+        # buffer matter and or proto matter
         pass
