@@ -19,7 +19,6 @@ from torch.optim import lr_scheduler
 import copy
 from agents.utils.functions import compute_cls_feature_mean_buffer
 from utils.data import Dataloader_from_numpy, extract_samples_according_to_labels
-from agents.utils import g2p
 
 
 class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
@@ -172,8 +171,6 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
             self.criterion = BinaryCrossEntropy(
                 dim=self.model.head.out_features, device=self.device
             )
-        elif self.args.agent == "G2P":
-            self.criterion = g2p.SupConLoss(self.args.temp)
         else:
             self.criterion = torch.nn.CrossEntropyLoss()
 
@@ -287,19 +284,16 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
 
             elif mode in ["val", "test"]:
                 with torch.no_grad():
-                    if self.args.agent == "G2P":
-                        pass
-                    else:
-                        outputs = self.model(x)
-                        step_loss = self.criterion(outputs, y)
+                    outputs = self.model(x)
+                    step_loss = self.criterion(outputs, y)
 
-                        if mode == "test" and self.ncm_classifier:
-                            features = self.model.feature(x)
-                            distance = torch.cdist(
-                                F.normalize(features, p=2, dim=1),
-                                F.normalize(self.means_of_exemplars, p=2, dim=1),
-                            )
-                            outputs = -distance  # select class with min distance
+                    if mode == "test" and self.ncm_classifier:
+                        features = self.model.feature(x)
+                        distance = torch.cdist(
+                            F.normalize(features, p=2, dim=1),
+                            F.normalize(self.means_of_exemplars, p=2, dim=1),
+                        )
+                        outputs = -distance  # select class with min distance
 
             epoch_loss += step_loss
 
@@ -402,21 +396,16 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
                     x_eval, y_eval, self.batch_size, shuffle=False
                 )
 
-                if self.args.agent == "G2P":
-                    pass
+                if (
+                    self.cf_matrix
+                    and self.task_now + 1 == self.num_tasks
+                    and mode == "test"
+                ):  # Collect results for CM
+                    eval_loss_i, eval_acc_i = self.test_for_cf_matrix(eval_dataloader_i)
                 else:
-                    if (
-                        self.cf_matrix
-                        and self.task_now + 1 == self.num_tasks
-                        and mode == "test"
-                    ):  # Collect results for CM
-                        eval_loss_i, eval_acc_i = self.test_for_cf_matrix(
-                            eval_dataloader_i
-                        )
-                    else:
-                        eval_loss_i, eval_acc_i = self.cross_entropy_epoch_run(
-                            eval_dataloader_i, mode="test"
-                        )
+                    eval_loss_i, eval_acc_i = self.cross_entropy_epoch_run(
+                        eval_dataloader_i, mode="test"
+                    )
 
                 if self.verbose:
                     print(
@@ -490,21 +479,16 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
                 y.unsqueeze()
 
             with torch.no_grad():
-                if self.args.agent == "G2P":
-                    pass
-                else:
-                    outputs = self.model(x)
-                    step_loss = ce_loss(outputs, y)
+                outputs = self.model(x)
+                step_loss = ce_loss(outputs, y)
 
-                    # using torch.exp assumes outputs are log-probabilities, however, the model outputs are raw logits
-                    # torch.argmax(outputs, dim=1) is sufficient for class prediction
-                    predictions = (
-                        (torch.max(torch.exp(outputs), 1)[1]).data.cpu().numpy()
-                    )
-                    labels = y.data.cpu().numpy()
+                # using torch.exp assumes outputs are log-probabilities, however, the model outputs are raw logits
+                # torch.argmax(outputs, dim=1) is sufficient for class prediction
+                predictions = (torch.max(torch.exp(outputs), 1)[1]).data.cpu().numpy()
+                labels = y.data.cpu().numpy()
 
-                    self.y_pred_cf.extend(predictions)  # Save Prediction
-                    self.y_true_cf.extend(labels)  # Save Truth
+                self.y_pred_cf.extend(predictions)  # Save Prediction
+                self.y_true_cf.extend(labels)  # Save Truth
 
             epoch_loss += step_loss
 
