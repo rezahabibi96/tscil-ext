@@ -289,7 +289,7 @@ class BaseLearnerMV(nn.Module, metaclass=abc.ABCMeta):
                 )
                 # here is most suitable, if applicable, for evaluating generator loss (acts as a generator)
 
-                # evaluating learner acc (acts as a learner)
+                # evaluating learner loss and acc (acts as a learner)
                 eval_dataloader_i = Dataloader_from_numpy(
                     x_eval, y_eval, self.batch_size, shuffle=False
                 )
