@@ -147,6 +147,9 @@ class GenerativeClassiferPlusPlusV1(BaseLearnerGCPP):
                     if mode == "valid"
                     else task_stream.tasks[i][2]
                 )
+                # here is most suitable, if applicable, for evaluating generator loss (acts as a generator)
+
+                # evaluating generator acc (acts as a pseudo-learner)
                 eval_dataloader_i = Dataloader_from_numpy(
                     x_eval, y_eval, self.batch_size, shuffle=False
                 )
@@ -193,11 +196,7 @@ class GenerativeClassiferPlusPlusV1(BaseLearnerGCPP):
                     eval_acc_i, decimals=2
                 )
 
-                # only learner is evaluated, evaluating generator of gcpp &/ g2p (e.g., gr in base.py) is infeasible
-                # since decoder is disentangled, so we must iterate over each decoder for all classes in (x_eval, y_eval)
-                # however, note that the generator can be evaluated in learn_task() using train and validation data
-                # it is simply not feasible to evaluate it in evaluate(), even with validation or test data
-
+            # Print accuracy matrix of the tasks on this run
             if self.task_now + 1 == self.num_tasks and self.verbose:
                 with np.printoptions(suppress=True):  # Avoid Scientific Notation
                     print("Accuracy matrix of all tasks:")
