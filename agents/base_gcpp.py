@@ -106,7 +106,7 @@ class BaseLearnerGCPP(nn.Module, metaclass=abc.ABCMeta):
 
     @torch.no_grad()
     def feature_space_tsne_visualization(
-        self, task_stream, path, view_generator=True, shared_encoder=True
+        self, task_stream, path, view_generator=False, shared_encoder=False
     ):
         """featured in evaluate func"""
         z = None
@@ -120,7 +120,7 @@ class BaseLearnerGCPP(nn.Module, metaclass=abc.ABCMeta):
                 x_all = np.concatenate((x_all, x_i))
                 y_all = np.concatenate((y_all, y_i))
 
-            if not shared_encoder:
+            if view_generator and not shared_encoder:
                 for id in list(set(y_i.tolist())):
                     (x_id, y_id) = extract_samples_according_to_labels(x_i, y_i, [id])
                     generator = getattr(self, "generator{}".format(id))
@@ -131,11 +131,12 @@ class BaseLearnerGCPP(nn.Module, metaclass=abc.ABCMeta):
         # Save the nparrays of features
         x_all = torch.Tensor(x_all).to(self.device)
 
-        if shared_encoder:
-            z_mean, z_log_var, z = self.generator.encoder(x_all.transpose(1, 2))
-
-        # detach numpy
-        features = z.cpu().detach().numpy()
+        if view_generator:
+            if shared_encoder:
+                z_mean, z_log_var, z = self.generator.encoder(x_all.transpose(1, 2))
+            features = z.cpu().detach().numpy()
+        else:
+            features = self.model.feature(x_all).cpu().detach().numpy()
 
         np.save(path + "f", features)
         np.save(path + "y", y_all)
