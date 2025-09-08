@@ -102,7 +102,7 @@ class EarlyStopping:
         self.path = path
         self.trace_func = trace_func
 
-    def __call__(self, val_metric, model):
+    def __call__(self, val_metric, model, save=True):
         if self.mode == "max":
             score = val_metric
         else:
@@ -111,7 +111,8 @@ class EarlyStopping:
         if self.best_score is None:
             self.best_score = score
             # comment save_checkpoint if not saving the model due to it can cause long runtime
-            self.save_checkpoint(val_metric, model)
+            if save:
+                self.save_checkpoint(val_metric, model)
         elif score < self.best_score + self.delta:
             self.counter += 1
             if self.verbose:
@@ -123,7 +124,8 @@ class EarlyStopping:
         else:
             self.best_score = score
             # comment save_checkpoint if not saving the model due to it can cause long runtime
-            self.save_checkpoint(val_metric, model)
+            if save:
+                self.save_checkpoint(val_metric, model)
             self.counter = 0
 
     def save_checkpoint(self, val_metric, model):
