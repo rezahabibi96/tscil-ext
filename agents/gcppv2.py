@@ -140,8 +140,9 @@ class GenerativeClassiferPlusPlusV2(BaseLearnerGCPP):
                 )
 
             # self.after_task for generator
+            if hasattr(self.generator, "decoders") and self.generator.decoders:
+                self.generator.copy_encoder()
             self.learned_classes += [id]
-            self.generator.copy_encoder()
 
         # self.after_task(x_train, y_train) # for learner
 
@@ -191,13 +192,13 @@ class GenerativeClassiferPlusPlusV2(BaseLearnerGCPP):
                     if y.size == 1:
                         y.unsqueeze()
 
-                    dists = []  # list of distances with each shape (#prototypes, )
+                    distances = []  # list of distances with each shape (#prototypes, )
                     for id, p in enumerate(prototypes):
-                        dist = self.generator.estimate_distance(x, p)
-                        dists.append(dist)
-                    dists = torch.cat(dists, dim=1)  # (batch_size, #prototypes)
+                        distance = self.generator.estimate_distance(x, p)
+                        distances.append(distance)
+                    distances = torch.cat(distances, dim=1)  # (batch_size, #prototypes)
 
-                    prediction = torch.argmin(dists, dim=1)
+                    prediction = torch.argmin(distances, dim=1)
                     correct += prediction.eq(y).sum().item()
 
                     if (
