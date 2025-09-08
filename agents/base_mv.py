@@ -28,6 +28,7 @@ class BaseLearnerMV(nn.Module, metaclass=abc.ABCMeta):
         self.model = model
         self.optimizer = set_optimizer(self.model, args)
         self.scheduler = None
+        self.task_stream = args.task_stream
 
         self.args = args
         self.run_id = args.run_id  # index of 'run', for saving ckpt
@@ -39,7 +40,7 @@ class BaseLearnerMV(nn.Module, metaclass=abc.ABCMeta):
         self.tsne = args.tsne
         self.cf_matrix = args.cf_matrix
 
-        self.buffer = None
+        self.buffer = dict()
         self.er_mode = args.er_mode
 
         if not self.args.tune:
@@ -102,8 +103,14 @@ class BaseLearnerMV(nn.Module, metaclass=abc.ABCMeta):
             )
 
         # Initialize the main criterion for classification
+        if self.args.criterion == "BCE":
+            self.criterion = BinaryCrossEntropy(
+                dim=self.model.head.out_features, device=self.device
+            )
         elif self.args.agent == "G2P":
             self.criterion = g2p.SupConLoss(self.args.temp)
+        else:
+            self.criterion = torch.nn.CrossEntropyLoss()
 
         if self.verbose:
             print(
@@ -203,7 +210,11 @@ class BaseLearnerMV(nn.Module, metaclass=abc.ABCMeta):
 
             if mode == "train":
                 if self.args.agent == "G2P":
-                    pass
+                    self.optimizer.zero_grad()
+                    outputs = g2p.calc_logits(self.model, x)
+                    step_loss = self.criterion(outputs, y)
+                    step_loss.backward()
+                    self.optimizer_step(epoch)
                 else:
                     self.optimizer.zero_grad()
                     outputs = self.model(x)
@@ -214,7 +225,8 @@ class BaseLearnerMV(nn.Module, metaclass=abc.ABCMeta):
             elif mode in ["val", "test"]:
                 with torch.no_grad():
                     if self.args.agent == "G2P":
-                        pass
+                        outputs = g2p.calc_logits(self.model, x)
+                        step_loss = self.criterion(outputs, y)
                     else:
                         outputs = self.model(x)
                         step_loss = self.criterion(outputs, y)
@@ -301,8 +313,6 @@ class BaseLearnerMV(nn.Module, metaclass=abc.ABCMeta):
 
                 for batch_id, (x, y) in enumerate(eval_dataloader_i):
                     x, y = x.to(self.device), y.to(self.device)
-                    x = x.transpose(1, 2)
-
                     total += y.size(0)
 
                     if y.size == 1:
@@ -310,15 +320,23 @@ class BaseLearnerMV(nn.Module, metaclass=abc.ABCMeta):
 
                     with torch.no_grad():
                         if self.args.agent == "G2P":
-                            pass
+                            features = self.model.feature(x)
+                            distance = torch.cdist(
+                                F.normalize(features, p=2, dim=1),
+                                F.normalize(self.means_of_exemplars, p=2, dim=1),
+                            )
+                            step_loss = self.criterion(
+                                g2p.calc_logits(self.model, x), y
+                            )
+                            outputs = -distance
                         else:
                             outputs = self.model(x)
                             step_loss = self.criterion(outputs, y)
 
                     eval_loss_i += step_loss
 
-                    preds = torch.argmax(outputs, dim=1)
-                    correct += preds.eq(y).sum().item()
+                    prediction = torch.argmax(outputs, dim=1)
+                    correct += prediction.eq(y).sum().item()
 
                     if (
                         self.cf_matrix
@@ -327,7 +345,7 @@ class BaseLearnerMV(nn.Module, metaclass=abc.ABCMeta):
                     ):
                         self.test_for_cf_matrix(
                             eval_dataloader_i,
-                            preds.data.cpu().numpy(),
+                            prediction.data.cpu().numpy(),
                             y.data.cpu().numpy(),
                         )
 
@@ -335,6 +353,8 @@ class BaseLearnerMV(nn.Module, metaclass=abc.ABCMeta):
                 eval_loss_i /= batch_id + 1  # avg loss of a mini batch
 
                 if self.verbose:
+                    print("pred", prediction[:10])
+                    print("y", y[:10])
                     print(
                         "Task {}: Accuracy == {}, Test CE Loss == {} ;".format(
                             i, eval_acc_i, eval_loss_i

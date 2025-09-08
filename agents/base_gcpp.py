@@ -29,7 +29,7 @@ class BaseLearnerGCPP(nn.Module, metaclass=abc.ABCMeta):
         self.tsne = args.tsne
         self.cf_matrix = args.cf_matrix
 
-        self.buffer = None
+        self.buffer = dict()
         self.er_mode = args.er_mode
 
         if not self.args.tune:
