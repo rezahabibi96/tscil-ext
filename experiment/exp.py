@@ -188,6 +188,7 @@ def experiment_multiple_runs(args):
                 args.task_stream = task_stream
                 agent = agents[args.agent](args=args)
             else:
+                args.task_stream = task_stream
                 model = setup_model(args)
                 agent = agents[args.agent](model=model, args=args)
 

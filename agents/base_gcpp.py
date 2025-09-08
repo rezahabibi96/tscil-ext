@@ -17,6 +17,7 @@ class BaseLearnerGCPP(nn.Module, metaclass=abc.ABCMeta):
     def __init__(self, args: argparse.Namespace):
         super(BaseLearnerGCPP, self).__init__()
         self.scheduler = None
+        self.task_stream = args.task_stream
 
         self.args = args
         self.run_id = args.run_id  # index of 'run', for saving ckpt

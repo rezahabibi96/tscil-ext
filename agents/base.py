@@ -88,6 +88,7 @@ class BaseLearner(nn.Module, metaclass=abc.ABCMeta):
         self.model = model
         self.optimizer = set_optimizer(self.model, args)
         self.scheduler = None
+        self.task_stream = args.task_stream
 
         self.args = args
         self.run_id = args.run_id  # index of 'run', for saving ckpt
