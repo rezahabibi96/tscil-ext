@@ -174,8 +174,8 @@ class GenerativeClassiferPlusPlusV1(BaseLearnerGCPP):
                         dists.append(dist)
                     dists = torch.cat(dists, dim=1)  # (batch_size, #prototypes)
 
-                    preds = torch.argmin(dists, dim=1)
-                    correct += preds.eq(y).sum().item()
+                    prediction = torch.argmin(dists, dim=1)
+                    correct += prediction.eq(y).sum().item()
 
                     if (
                         self.cf_matrix
@@ -184,7 +184,7 @@ class GenerativeClassiferPlusPlusV1(BaseLearnerGCPP):
                     ):
                         self.test_for_cf_matrix(
                             eval_dataloader_i,
-                            preds.data.cpu().numpy(),
+                            prediction.data.cpu().numpy(),
                             y.data.cpu().numpy(),
                         )
                 eval_acc_i = 100.0 * (correct / total)
