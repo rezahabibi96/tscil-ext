@@ -77,8 +77,8 @@ class VaeEncoder(nn.Module):
         z_log_var = self.encoder_fc2(hx)
         # ==================== DIAGNOSIS ====================
         # comment if not using kd and or replay
-        z_mean = torch.clamp(z_mean, min=-5.0, max=5.0)
-        z_log_var = torch.clamp(z_log_var, min=-5.0, max=5.0)
+        # z_mean = torch.clamp(z_mean, min=-5.0, max=5.0)
+        # z_log_var = torch.clamp(z_log_var, min=-5.0, max=5.0)
         # comment if not using kd and replay
         # ==================== DIAGNOSIS ====================
         z = Sampling()(z_mean, z_log_var)
@@ -91,8 +91,8 @@ class VaeEncoder(nn.Module):
         z_log_var = self.encoder_fc2(hx)
         # ==================== DIAGNOSIS ====================
         # comment if not using kd and replay
-        z_mean = torch.clamp(z_mean, min=-10, max=10)
-        z_log_var = torch.clamp(z_log_var, min=-10, max=10)
+        # z_mean = torch.clamp(z_mean, min=-10, max=10)
+        # z_log_var = torch.clamp(z_log_var, min=-10, max=10)
         # comment if not using kd and replay
         # ==================== DIAGNOSIS ====================
         return z_mean
@@ -171,7 +171,7 @@ class GCPPVariationalAutoencoderConv(nn.Module):
         device,
         recon_wt=3.0,
         classifier="fmap",
-        kd_g=True,
+        kd_g=False,
         lambda_kd_g=0.1,
     ):
         super().__init__()
