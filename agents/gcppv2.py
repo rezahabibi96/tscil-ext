@@ -35,9 +35,6 @@ class GenerativeClassiferPlusPlusV2(BaseLearnerGCPP):
             lambda_kd_g=self.args.lambda_kd_g,
         )
 
-        self.buffer = dict()
-        self.er_mode = args.er_mode
-
         self.warmup_epochs = 50
         self.max_mem_per_class = 100
 
