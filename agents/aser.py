@@ -7,14 +7,17 @@ class ASER(BaseLearner):
     """
     Online Class-Incremental Continual Learning with Adversarial Shapley Value, AAAI 2021
     """
+
     def __init__(self, model, args):
         super(ASER, self).__init__(model, args)
         args.eps_mem_batch = args.batch_size
-        args.retrieve = 'ASER'
-        args.update = 'ASER'
+        args.retrieve = "ASER"
+        args.update = "ASER"
         self.buffer = Buffer(model, args)
         self.ncm_classifier = args.ncm_classifier
-        print('ER mode: {}, NCM classifier: {}'.format(self.er_mode, self.ncm_classifier))
+        print(
+            "ER mode: {}, NCM classifier: {}".format(self.er_mode, self.ncm_classifier)
+        )
 
     def train_epoch(self, dataloader, epoch):
         total = 0
@@ -47,7 +50,7 @@ class ASER(BaseLearner):
 
             self.optimizer_step(epoch=epoch)
 
-            if self.er_mode == 'online':
+            if self.er_mode == "online":
                 self.buffer.update(x, y)
 
             epoch_loss += loss
@@ -57,7 +60,7 @@ class ASER(BaseLearner):
             else:
                 correct += prediction.eq(combined_labels).sum().item()
 
-        epoch_acc = 100. * (correct / total)
-        epoch_loss /= (batch_id + 1)
+        epoch_acc = 100.0 * (correct / total)
+        epoch_loss /= batch_id + 1
 
         return epoch_loss, epoch_acc
