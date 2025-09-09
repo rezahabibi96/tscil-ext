@@ -1,51 +1,38 @@
 import torch
+from utils.data import extract_samples_according_to_labels
 
 
-def retrieve_buffer(buffer, batch_size, learned_classes, exclude_id):
-    """
-    Sample replay examples from buffer across learned classes (excluding one class).
-
-    Args:
-        buffer (dict): Dictionary mapping class_id -> tensor of stored samples.
-        batch_size (int): Total number of replay samples to collect.
-        learned_classes (list or iterable): List of class IDs that have been learned.
-        exclude_id (int): The class ID to exclude from replay sampling.
-
-    Returns:
-        torch.Tensor: Concatenated replay samples (or None if no samples available).
-    """
-
-    x_buff = None
+def retrieve_buffer(buffer, batch_size, learned_classes):
+    x_buff, y_buff = None, None
     per_class = max(1, batch_size // len(learned_classes))
 
     for cl_id in learned_classes:
-        if cl_id != exclude_id and cl_id in buffer:
-            rand_idxs = torch.randperm(buffer[cl_id].size(0))[:per_class]
-            x_buff_cl_id = buffer[cl_id][rand_idxs]
+        if cl_id in buffer:
+            x_class, y_class = buffer[cl_id]
+            rand_idxs = torch.randperm(x_class.size(0))[:per_class]
+
+            x_sample = x_class[rand_idxs]
+            y_sample = y_class[rand_idxs]
 
             if x_buff is not None:
-                x_buff = torch.cat([x_buff, x_buff_cl_id], dim=0)
+                x_buff = torch.cat([x_buff, x_sample], dim=0)
+                y_buff = torch.cat([y_buff, y_sample], dim=0)
             else:
-                x_buff = x_buff_cl_id
+                x_buff = x_sample
+                y_buff = y_sample
 
-    return x_buff
+    return x_buff, y_buff
 
 
-def update_buffer(buffer, class_id, x_train_id, max_mem_per_class):
-    """
-    Update the replay buffer for a given class.
-
-    Args:
-        buffer (dict): Dictionary mapping class_id -> tensor of stored samples.
-        class_id (int): The class ID to update.
-        x_train_id (array-like or tensor): Training samples for the class.
-        max_mem_per_class (int): Maximum number of samples to store per class.
-
-    Returns:
-        dict: Updated buffer.
-    """
-
-    n_buff = min(max_mem_per_class, len(x_train_id))
-    buffer[class_id] = torch.tensor(x_train_id[:n_buff])
+def update_buffer(buffer, class_ids, x_train, y_train, max_mem_per_class):
+    for class_id in class_ids:
+        (x_train_id, y_train_id) = extract_samples_according_to_labels(
+            x_train, y_train, [id]
+        )
+        n_buff = min(max_mem_per_class, len(x_train_id))
+        buffer[class_id] = (
+            torch.tensor(x_train_id[:n_buff], dtype=torch.float32),
+            torch.tensor(y_train_id[:n_buff], dtype=torch.long),
+        )
 
     return buffer
