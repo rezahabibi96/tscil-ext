@@ -1,5 +1,6 @@
 import torch
-from agents.base import BaseLearner
+import numpy as np
+from agents.base_mv import BaseLearnerMV
 from torch.optim import Adam
 import copy
 from utils.setup_elements import input_size_match
@@ -8,10 +9,10 @@ from utils.data import Dataloader_from_numpy, extract_samples_according_to_label
 from utils.utils import EarlyStopping
 from torch.optim import lr_scheduler
 from utils.optimizer import adjust_learning_rate
-from agents.utils import g2p
+from agents.utils import g2p, gcpp
 
 
-class Generative2Prototype(BaseLearner):
+class Generative2Prototype(BaseLearnerMV):
     """ """
 
     def __init__(self, model, args):
@@ -33,8 +34,10 @@ class Generative2Prototype(BaseLearner):
 
         self.previous_generator = None
         self.previous_model = None
+        self.means_of_exemplars = None
 
-        self.transform = g2p.TSAugmentPipeline()
+        self.warmup_epochs = 50
+        self.max_mem_per_class = 100
 
     def learn_task(self, task):
         """
@@ -82,7 +85,7 @@ class Generative2Prototype(BaseLearner):
             if self.verbose:
                 self.epoch_loss_printer(epoch, epoch_acc_train, epoch_loss_train)
 
-            early_stopping(epoch_loss_val, self.model)
+            early_stopping(epoch_loss_val, self.model, save=True)
             if early_stopping.early_stop:
                 if self.verbose:
                     print("Early stopping")
@@ -90,93 +93,100 @@ class Generative2Prototype(BaseLearner):
 
         # Train the generator
         for id in self.classes_in_task:
-            if self.verbose:
-                print(f"Creating the disentangled decoder {id}")
+            # if self.verbose:
+            #     print(f"Creating the disentangled decoder {id}")
 
-            self.generator.create_decoder(id)
+            # self.generator.create_decoder(id)
 
-            ckpt_path_g = self.ckpt_path.replace("/ckpt", f"/generator_ckpt_{id}")
-            epochs_g = self.args.epochs_g
+            # ckpt_path_g = self.ckpt_path.replace("/ckpt", f"/generator_ckpt_{id}")
+            # epochs_g = self.args.epochs_g
 
-            if self.verbose:
-                print(f"Training the generator {id}")
+            # if self.verbose:
+            #     print(f"Training the generator {id}")
 
-            encoder_params = list(self.generator.encoder.parameters())
-            decoder_params = list(self.generator.decoders[str(id)].parameters())
+            # encoder_params = list(self.generator.encoder.parameters())
+            # decoder_params = list(self.generator.decoders[str(id)].parameters())
 
-            params = encoder_params + decoder_params
+            # params = encoder_params + decoder_params
 
-            optimizer_g = Adam(params, lr=self.args.lr_g, betas=(0.9, 0.999))
-            early_stopping = EarlyStopping(
-                path=ckpt_path_g,
-                patience=self.args.patience,
-                mode="min",
-                verbose=False,
-            )
+            # optimizer_g = Adam(params, lr=self.args.lr_g, betas=(0.9, 0.999))
+            # early_stopping = EarlyStopping(
+            #     path=ckpt_path_g,
+            #     patience=self.args.patience,
+            #     mode="min",
+            #     verbose=False,
+            # )
 
-            (x_train_id, y_train_id) = extract_samples_according_to_labels(
-                x_train, y_train, [id]
-            )
-            (x_val_id, y_val_id) = extract_samples_according_to_labels(
-                x_val, y_val, [id]
-            )
+            # (x_train_id, y_train_id) = extract_samples_according_to_labels(
+            #     x_train, y_train, [id]
+            # )
+            # (x_val_id, y_val_id) = extract_samples_according_to_labels(
+            #     x_val, y_val, [id]
+            # )
 
-            train_dataloader = Dataloader_from_numpy(
-                x_train_id, y_train_id, self.batch_size, shuffle=True
-            )
-            val_dataloader = Dataloader_from_numpy(
-                x_val_id, y_val_id, self.batch_size, shuffle=False
-            )
+            # train_dataloader = Dataloader_from_numpy(
+            #     x_train_id, y_train_id, self.batch_size, shuffle=True
+            # )
+            # val_dataloader = Dataloader_from_numpy(
+            #     x_val_id, y_val_id, self.batch_size, shuffle=False
+            # )
 
-            for epoch in range(epochs_g):
-                for batch_id, (x, y) in enumerate(train_dataloader):
-                    x = x.to(self.device)
-                    x_ = None
+            # for epoch in range(epochs_g):
+            #     for batch_id, (x, y) in enumerate(train_dataloader):
+            #         x = x.to(self.device)
+            #         x_ = None
 
-                    # generator's input should be (N, C, L)
-                    rnt = 1 / (self.task_now + 1) if self.args.adaptive_weight else 0.5
-                    generator_loss_dict = self.generator.train_a_batch(
-                        x=x.transpose(1, 2),
-                        optimizer=optimizer_g,
-                        decoder_id=id,
-                        x_=x_,
-                        rnt=rnt,
-                    )
+            #         # generator's input should be (N, C, L)
+            #         rnt = 1 / (self.task_now + 1) if self.args.adaptive_weight else 0.5
+            #         generator_loss_dict = self.generator.train_a_batch(
+            #             x=x.transpose(1, 2),
+            #             optimizer=optimizer_g,
+            #             decoder_id=id,
+            #             x_=x_,
+            #             rnt=rnt,
+            #         )
 
-                train_mse_loss, train_kl_loss = self.generator.evaluate(
-                    train_dataloader, id
-                )
-                # Validate on val set for early stop
-                val_mse_loss, val_kl_loss = self.generator.evaluate(val_dataloader, id)
+            #     train_mse_loss, train_kl_loss = self.generator.evaluate(
+            #         train_dataloader, id
+            #     )
+            #     # Validate on val set for early stop
+            #     val_mse_loss, val_kl_loss = self.generator.evaluate(val_dataloader, id)
 
-                if self.verbose:
-                    print(
-                        "Epoch {}/{}: Recons Loss = {}, KL Divergence = {}".format(
-                            epoch + 1,
-                            epochs_g,
-                            train_mse_loss,
-                            train_kl_loss,
-                        )
-                    )
+            #     if self.verbose:
+            #         print(
+            #             "Epoch {}/{}: Recons Loss = {}, KL Divergence = {}".format(
+            #                 epoch + 1,
+            #                 epochs_g,
+            #                 train_mse_loss,
+            #                 train_kl_loss,
+            #             )
+            #         )
 
-                # func save_checkpoint in early_stopping is why it took so long
-                early_stopping(val_mse_loss, self.generator)
-                if early_stopping.early_stop:
-                    if self.verbose:
-                        print("Early stopping")
-                    break
+            #     # func save_checkpoint in early_stopping is why it took so long
+            #     early_stopping(val_mse_loss, self.generator, save=False)
+            #     if early_stopping.early_stop:
+            #         if self.verbose:
+            #             print("Early stopping")
+            #         break
 
-            # self.after_task for generator
+            # # self.after_task for generator
+            # if hasattr(self.generator, "decoders") and self.generator.decoders:
+            #     self.generator.copy_encoder()
             self.learned_classes += [id]
-            self.generator.copy_encoder()
 
         self.after_task(x_train, y_train)  # for learner
 
     def train_epoch(self, dataloader, epoch):
         total = 0
-        correct = 0
         epoch_loss = 0
+
         self.model.train()
+
+        x_buff, y_buff = None, None
+        if self.args.replay_l == "raw" and self.buffer:
+            x_buff, y_buff = gcpp.retrieve_buffer(
+                self.buffer, self.batch_size, self.learned_classes
+            )
 
         for batch_id, (x, y) in enumerate(dataloader):
             x, y = x.to(self.device), y.to(self.device)  # x is in shape of (N, L, C)
@@ -188,38 +198,59 @@ class Generative2Prototype(BaseLearner):
             self.optimizer.zero_grad()
             loss_ce = 0
 
-            if self.task_now > 0:  # Generative Replay after 1st task
-                # TODO : sample (learned class) data from generator
-                pass
+            combined_batch, combined_labels = None, None
+            if self.task_now > 0:
+                if self.args.replay_l == "raw" and x_buff is not None:
+                    rp = torch.randperm(x_buff.size(0))
+                    x_, y_ = x_buff[rp].to(self.device), y_buff[rp].to(self.device)
 
-                with torch.no_grad():
-                    # TODO : old model loss on sample data
-                    pass
+                    combined_batch = torch.cat((x, x_))
+                    combined_labels = torch.cat((y, y_))
 
-                # Train the classifier model on this batch
-                # TODO : new model loss on sample data
+            if combined_labels is not None:
+                outputs = g2p.calc_logits(self.model, combined_batch)
+            else:
+                outputs = g2p.calc_logits(self.model, x)
 
-            x_aug = self.transform(x.transpose(1, 2))
-
-            x_feat = self.model.feature(x.transpose(1, 2)).unsqueeze(1)
-            x_aug_feat = self.model.feature(x_aug.transpose(1, 2)).unsqueeze(1)
-
-            features = torch.cat([x_feat, x_aug_feat], dim=1)
-
-            outputs = features
             loss_ce += self.criterion(outputs, y)
             loss_ce.backward()
             self.optimizer_step(epoch=epoch)
 
             epoch_loss += loss_ce
-            prediction = torch.argmax(outputs, dim=1)  # TODO :
-            correct += prediction.eq(y).sum().item()
 
-        epoch_acc = 100.0 * (correct / total)
         epoch_loss /= batch_id + 1
 
-        return epoch_loss, epoch_acc
+        return epoch_loss, None
 
     def after_task(self, x_train, y_train):
         self.model.load_state_dict(torch.load(self.ckpt_path))
         self.previous_model = copy.deepcopy(self.model).eval()
+
+        if self.args.replay_g == "raw" and self.max_mem_per_class != 0:
+            self.buffer = gcpp.update_buffer(
+                self.buffer,
+                self.learned_classes,
+                x_train,
+                y_train,
+                self.max_mem_per_class,
+            )
+
+        all_cls = self.learned_classes
+        (x_train, y_train), _, _ = g2p.all_data(self.task_stream.tasks)
+
+        X = torch.Tensor(x_train).to(self.device)
+        Y = torch.Tensor(y_train).long().to(self.device)
+
+        # all_cls = np.array(torch.unique(Y).to("cpu"))
+        all_means = []
+
+        with torch.no_grad():
+            all_means = g2p.calc_cls_feature_mean_buffer(self.model, X, Y, all_cls)
+            self.means_of_exemplars = all_means
+
+        # if not hasattr(self, "means_of_exemplars") or self.means_of_exemplars is None:
+        #     self.means_of_exemplars = all_means
+        # else:
+        #     self.means_of_exemplars = torch.cat(
+        #         [self.means_of_exemplars, all_means], dim=0
+        #     )
