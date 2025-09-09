@@ -353,8 +353,6 @@ class BaseLearnerMV(nn.Module, metaclass=abc.ABCMeta):
                 eval_loss_i /= batch_id + 1  # avg loss of a mini batch
 
                 if self.verbose:
-                    print("pred", prediction[:10])
-                    print("y", y[:10])
                     print(
                         "Task {}: Accuracy == {}, Test CE Loss == {} ;".format(
                             i, eval_acc_i, eval_loss_i

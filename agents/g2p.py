@@ -207,12 +207,13 @@ class Generative2Prototype(BaseLearnerMV):
                     combined_batch = torch.cat((x, x_))
                     combined_labels = torch.cat((y, y_))
 
-            if combined_labels is not None:
+            if combined_batch is not None or combined_labels is not None:
                 outputs = g2p.calc_logits(self.model, combined_batch)
+                loss_ce += self.criterion(outputs, combined_labels)
             else:
                 outputs = g2p.calc_logits(self.model, x)
+                loss_ce += self.criterion(outputs, y)
 
-            loss_ce += self.criterion(outputs, y)
             loss_ce.backward()
             self.optimizer_step(epoch=epoch)
 
